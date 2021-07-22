@@ -1,0 +1,152 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build nginx-quic beta 1
+
+# Controls when the action will run. 
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    branches:
+      - main
+      - b*
+  pull_request:
+    branches:
+      - main
+      - b*
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  release:
+    types: [published]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+      
+      # Runs a set of commands using the runners shell
+      - name: depend
+        run: |
+          sudo apt-get install build-essential ca-certificates zlib1g-dev libpcre3 libpcre3-dev tar unzip libssl-dev wget curl git cmake ninja-build golang
+          
+      - name: Setup Go environment
+        uses: actions/setup-go@v2.1.3
+        with:
+         go-version: ^1.16
+         stable: false
+  
+      - name: boringssl
+        run: |
+          git clone --depth=1 https://github.com/google/boringssl.git
+          cd boringssl
+          mkdir build
+          cd build
+          cmake -GNinja ..
+          ninja
+          cd ../..
+          mkdir -p boringssl/.openssl/lib
+          cp boringssl/build/crypto/libcrypto.a boringssl/build/ssl/libssl.a boringssl/.openssl/lib
+          cd boringssl/.openssl
+          ln -s ../include .
+          cd ../..
+          
+      - name: apt
+        run: |
+          sudo apt-get install curl gnupg2 ca-certificates lsb-release tree
+          echo "deb http://nginx.org/packages/mainline/debian `lsb_release -cs` nginx"     | sudo tee /etc/apt/sources.list.d/nginx.list
+          echo "deb-src http://nginx.org/packages/mainline/debian `lsb_release -cs` nginx"     | sudo tee /etc/apt/sources.list.d/nginx.list
+          curl -fsSL https://nginx.org/keys/nginx_signing.key | sudo apt-key add -
+          sudo apt-get install nginx
+          
+      - name: hg
+        run: |
+          sudo apt-get install hgsubversion
+          hg clone -b quic https://hg.nginx.org/nginx-quic
+          cd nginx-quic
+          ./auto/configure --prefix=/etc/nginx --sbin-path=/usr/sbin/nginx --modules-path=/usr/lib/nginx/modules --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --pid-path=/var/run/nginx.pid --lock-path=/var/run/nginx.lock --http-client-body-temp-path=/var/cache/nginx/client_temp --http-proxy-temp-path=/var/cache/nginx/proxy_temp --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp --http-scgi-temp-path=/var/cache/nginx/scgi_temp --user=nginx --group=nginx --with-compat --with-file-aio --with-threads --with-http_addition_module --with-http_auth_request_module --with-http_dav_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_realip_module --with-http_slice_module --with-http_ssl_module --with-http_stub_status_module --with-http_sub_module --with-http_v2_module --with-stream --with-stream_realip_module --with-stream_ssl_module --with-stream_ssl_preread_module --with-cc-opt=-I../boringssl/include --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto' --with-http_v3_module --with-http_quic_module --with-stream_quic_module
+          make
+      - uses: actions/upload-artifact@v2
+        with:
+          name: nginx-quic
+          path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
+      
+      # Setting an environment variable
+      # https://docs.github.com/cn/actions/reference/workflow-commands-for-github-actions	
+      - name: Set variables
+        id: step_one
+        shell: bash
+        run: |
+          echo "RELEASE_NAME=nginx-quic v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}') build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')" >> $GITHUB_ENV
+          
+          echo "TAG_NAME: "
+          echo "${{ env.TAG_NAME }}"
+          echo ""
+          echo "RELEASE_NAME: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo ""
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}, RELEASE_NAME: $(GITHUB_RELEASE_NAME) , TAG_NAME: ${GITHUB_TAG_NAME}"
+          echo ""
+          echo "RELEASE_NAME: ${{ env.RELEASE_NAME }} "
+          echo "TAG_NAME: ${{ env.TAG_NAME }} "
+          echo ""
+          echo "TAG_NAME 1: ${{ env.TAG_NAME }} "
+          echo "TAG_NAME 2: $env.TAG_NAME "
+          echo "TAG_NAME 3: $TAG_NAME "
+          echo "TAG_NAME 4:" $TAG_NAME
+          echo "TAG_NAME 5: ""${{ env.TAG_NAME }} "
+          echo ""
+          echo "RELEASE_NAME 5: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
+          echo "GITHUB_ENV 1: "$GITHUB_ENV
+          echo "GITHUB_ENV 2: ${GITHUB_ENV} "       
+              
+      - name: Use variables
+        id: step_two
+        shell: bash
+        run: |
+          echo "TAG_NAME: "
+          echo "${{ env.TAG_NAME }}"
+          echo ""
+          echo "RELEASE_NAME: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo ""
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}, RELEASE_NAME: $(GITHUB_RELEASE_NAME) , TAG_NAME: ${GITHUB_TAG_NAME}"
+          echo ""
+          echo "RELEASE_NAME: ${{ env.RELEASE_NAME }} "
+          echo "TAG_NAME: ${{ env.TAG_NAME }} "
+          echo ""
+          echo "TAG_NAME 1: ${{ env.TAG_NAME }} "
+          echo "TAG_NAME 2: $env.TAG_NAME "
+          echo "TAG_NAME 3: $TAG_NAME "
+          echo "TAG_NAME 4:" $TAG_NAME
+          echo "TAG_NAME 5: ""${{ env.TAG_NAME }} "
+          echo ""
+          echo "RELEASE_NAME 5: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
+          echo "GITHUB_ENV 1: "$GITHUB_ENV
+          echo "GITHUB_ENV 2: ${GITHUB_ENV} "
+          
+          echo "$(tree -d)"
+          
+          
+      - name: Upload binaries to release
+        uses: softprops/action-gh-release@v1                                          
+        with:
+          name: ${{ env.RELEASE_NAME }}
+          tag_name: ${{ env.TAG_NAME }}
+          draft: false
+          prerelease: false
+          files: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
