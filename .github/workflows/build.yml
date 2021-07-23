@@ -84,7 +84,7 @@ jobs:
         run: |
           git clone https://github.com/nginx/nginx.git
           cd nginx
-          curl -fsSL https://raw.githubusercontent.com/rosebe/patch/master/nginx.patch
+          wget https://raw.githubusercontent.com/rosebe/patch/master/nginx.patch
           patch -p1 < nginx.patch
           
           ./auto/configure \
