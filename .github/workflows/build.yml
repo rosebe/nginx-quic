@@ -78,13 +78,14 @@ jobs:
           path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
       
         # Setting an environment variable
-        # https://docs.github.com/cn/actions/reference/workflow-commands-for-github-actions
+        # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
       - name: Set variables
         id: step_one
         shell: bash
         run: |
           echo "RELEASE_NAME=nginx-quic v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}') build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
           echo "TAG_NAME=v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')" >> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic" >> $GITHUB_ENV
           
           echo "TAG_NAME: "
           echo "${{ env.TAG_NAME }}"
@@ -120,10 +121,13 @@ jobs:
           echo "RELEASE_NAME: "
           echo "${{ env.RELEASE_NAME }}"
           echo ""
+          echo "ASSET_NAME: "
+          echo "${{ env.ASSET_NAME }}" 
           echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}, RELEASE_NAME: $(GITHUB_RELEASE_NAME) , TAG_NAME: ${GITHUB_TAG_NAME}"
           echo ""
           echo "RELEASE_NAME: ${{ env.RELEASE_NAME }} "
           echo "TAG_NAME: ${{ env.TAG_NAME }} "
+          echo "ASSET_NAME: ${{ env.ASSET_NAME }} "
           echo ""
           echo "TAG_NAME 1: ${{ env.TAG_NAME }} "
           echo "TAG_NAME 2: $env.TAG_NAME "
@@ -146,8 +150,8 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}          
           tag: ${{ env.TAG_NAME }}
           release_name: ${{ env.RELEASE_NAME }}
-        # asset_name: ${{ env.RELEASE_NAME }}
+          asset_name: ${{ env.ASSET_NAME }}
           file: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
           body: "fix bug"
           overwrite: true
-          file_glob: false
+          file_glob: true
