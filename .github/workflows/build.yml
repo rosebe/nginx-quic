@@ -146,8 +146,8 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}          
           tag: ${{ env.TAG_NAME }}
           release_name: ${{ env.RELEASE_NAME }}
-          asset_name: ${{ env.RELEASE_NAME }}
+        # asset_name: ${{ env.RELEASE_NAME }}
           file: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
           body: "fix bug"
           overwrite: true
-          file_glob: true
+          file_glob: false
