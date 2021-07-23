@@ -154,4 +154,4 @@ jobs:
           file: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
           body: "fix bug"
           overwrite: true
-          file_glob: true
+          file_glob: false
