@@ -130,7 +130,7 @@ jobs:
             --add-module=../ngx_brotli \
             --with-openssl=../openssl \
             --with-openssl-opt='enable-tls1_3 zlib -march=native -Wl,-flto' \
-            --with-pcre=../pcre-8.45 --with-pcre-jit \#
+            --with-pcre=../pcre-8.45 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v2_hpack_enc \
             --with-cc-opt='-O2 -fno-strict-aliasing -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -fPIC' \
@@ -143,8 +143,8 @@ jobs:
           
       - uses: actions/upload-artifact@v2
         with:
-          name: nginx-quic
-          path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
+          name: nginx-patch
+          path: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
           
       # Setting an environment variable
       # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
