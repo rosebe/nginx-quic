@@ -153,7 +153,7 @@ jobs:
         shell: bash
         run: |
           echo "ASSET_NAME=nginx-patch v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}') build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
-          echo "TAG_NAME=v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}') patch" >> $GITHUB_ENV
           echo "RELEASE_NAME=nginx-patch" v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')>> $GITHUB_ENV
           
           echo "TAG_NAME: "
