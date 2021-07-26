@@ -50,10 +50,8 @@ jobs:
           git pull
           git submodule update --init --recursive
           cd ..
-          
-          
-          
-       name: brotli
+            
+      - name: brotli
         run: |
           git clone https://github.com/google/ngx_brotli.git
           cd ngx_brotli
