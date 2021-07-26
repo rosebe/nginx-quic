@@ -46,32 +46,104 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/google/boringssl.git
           cd boringssl
-          mkdir build
-          cd build
-          cmake -GNinja ..
-          ninja
-          cd ../..
-          mkdir -p boringssl/.openssl/lib
-          cp boringssl/build/crypto/libcrypto.a boringssl/build/ssl/libssl.a boringssl/.openssl/lib
-          cd boringssl/.openssl
-          ln -s ../include .
-          cd ../..
+          git checkout .
+          git pull
+          git submodule update --init --recursive
+          cd ..
+          
+          
+          
+       name: brotli
+        run: |
+          git clone https://github.com/google/ngx_brotli.git
+          cd ngx_brotli
+          git checkout .
+          git pull
+          git submodule update --init --recursive
+          cd ..
+          
+      - name: zlib-cf
+        run: |
+          git clone -b gcc.amd64  https://github.com/cloudflare/zlib.git zlib-cf
+          cd zlib-cf
+          make -f Makefile.in distclean
+          git checkout .
+          git pull
+          git submodule update --init --recursive
+          cd ..
+          
+      - name: pcre
+        run: |
+          curl -L -o pcre-8.45.tar.gz https://ftp.pcre.org/pub/pcre/pcre-8.45.tar.gz
+          tar xzvf pcre-8.45.tar.gz
+                              
+          
           
       - name: apt
         run: |
           sudo apt-get install curl gnupg2 ca-certificates lsb-release tree
-          echo "deb http://nginx.org/packages/mainline/debian `lsb_release -cs` nginx"     | sudo tee /etc/apt/sources.list.d/nginx.list
-          echo "deb-src http://nginx.org/packages/mainline/debian `lsb_release -cs` nginx"     | sudo tee /etc/apt/sources.list.d/nginx.list
-          curl -fsSL https://nginx.org/keys/nginx_signing.key | sudo apt-key add -
-          sudo apt-get install nginx
-          
+                    
       - name: hg
         run: |
           sudo apt-get install hgsubversion
           hg clone -b quic https://hg.nginx.org/nginx-quic
           cd nginx-quic
-          ./auto/configure --prefix=/etc/nginx --sbin-path=/usr/sbin/nginx --modules-path=/usr/lib/nginx/modules --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --pid-path=/var/run/nginx.pid --lock-path=/var/run/nginx.lock --http-client-body-temp-path=/var/cache/nginx/client_temp --http-proxy-temp-path=/var/cache/nginx/proxy_temp --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp --http-scgi-temp-path=/var/cache/nginx/scgi_temp --user=nginx --group=nginx --with-compat --with-file-aio --with-threads --with-http_addition_module --with-http_auth_request_module --with-http_dav_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_realip_module --with-http_slice_module --with-http_ssl_module --with-http_stub_status_module --with-http_sub_module --with-http_v2_module --with-stream --with-stream_realip_module --with-stream_ssl_module --with-stream_ssl_preread_module --with-cc-opt=-I../boringssl/include --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto' --with-http_v3_module --with-http_quic_module --with-stream_quic_module
-          make
+          wget https://raw.githubusercontent.com/rosebe/patch/master/nginx.patch
+          patch -p1 < nginx.patch
+          
+          ./auto/configure \
+            --prefix=/etc/nginx \
+            --sbin-path=/usr/sbin/nginx \
+            --modules-path=/usr/lib64/nginx/modules \
+            --conf-path=/etc/nginx/nginx.conf \
+            --error-log-path=/var/log/nginx/error.log \
+            --http-log-path=/var/log/nginx/access.log \
+            --pid-path=/var/run/nginx.pid \
+            --lock-path=/var/run/nginx.lock \
+            --http-client-body-temp-path=/var/cache/nginx/client_temp \
+            --http-proxy-temp-path=/var/cache/nginx/proxy_temp \
+            --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
+            --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp \
+            --http-scgi-temp-path=/var/cache/nginx/scgi_temp \
+            --user=nginx \
+            --group=nginx \
+            --with-compat \
+            --with-file-aio \
+            --with-threads \
+            --with-http_addition_module \
+            --with-http_auth_request_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_mp4_module \
+            --with-http_random_index_module \
+            --with-http_realip_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_ssl_module \
+            --with-http_stub_status_module \
+            --with-http_sub_module \
+            --with-http_v2_module \
+            --with-mail \
+            --with-mail_ssl_module \
+            --with-stream \
+            --with-stream_realip_module \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --add-module=../ngx_brotli \
+            --with-openssl=../boringssl \
+            --with-pcre=../pcre-8.45 --with-pcre-jit \
+            --with-zlib=../zlib-cf \
+            --with-http_v2_hpack_enc \
+            --with-http_v3_module \
+            --with-http_quic_module \
+            --with-stream_quic_module \
+            --with-cc-opt='-static -static-libgcc' \
+            --with-ld-opt='-static'
+         
+          make -j$(nproc --all)
+          
       - uses: actions/upload-artifact@v2
         with:
           name: nginx-quic
@@ -83,7 +155,7 @@ jobs:
         id: step_one
         shell: bash
         run: |
-          echo "ASSET_NAME=nginx-quic v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}') build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}') build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
           echo "TAG_NAME=v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')" >> $GITHUB_ENV
           echo "RELEASE_NAME=nginx-quic" v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')>> $GITHUB_ENV
           
@@ -152,6 +224,6 @@ jobs:
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
           file: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
-          body: "fix bug"
+          body: "Happy play "
           overwrite: true
           file_glob: false
