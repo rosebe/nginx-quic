@@ -129,7 +129,7 @@ jobs:
             --with-stream_ssl_preread_module \
             --add-module=../ngx_brotli \
             --with-openssl=../openssl \
-            --with-openssl-opt='enable-tls1_3 zlib -march=native' \
+            --with-openssl-opt='enable-tls1_3 zlib' \
             --with-pcre=../pcre-8.45 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v2_hpack_enc \
