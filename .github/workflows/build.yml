@@ -46,10 +46,16 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/google/boringssl.git
           cd boringssl
-          git checkout .
-          git pull
-          git submodule update --init --recursive
-          cd ..
+          mkdir build
+          cd build
+          cmake -GNinja ..
+          ninja
+          cd ../..
+          mkdir -p boringssl/.openssl/lib
+          cp boringssl/build/crypto/libcrypto.a boringssl/build/ssl/libssl.a boringssl/.openssl/lib
+          cd boringssl/.openssl
+          ln -s ../include .
+          cd ../..
             
       - name: brotli
         run: |
@@ -128,14 +134,13 @@ jobs:
             --with-stream_ssl_module \
             --with-stream_ssl_preread_module \
             --add-module=../ngx_brotli \
-            --with-openssl=../boringssl \
             --with-pcre=../pcre-8.45 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v3_module \
             --with-http_quic_module \
             --with-stream_quic_module \
-            --with-cc-opt='-static -static-libgcc' \
-            --with-ld-opt='-static'
+            --with-cc-opt='-I../boringssl/include -static -static-libgcc' \
+            --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto -static'
          
           make -j$(nproc --all)
           
