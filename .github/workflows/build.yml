@@ -86,8 +86,8 @@ jobs:
           sudo apt-get install hgsubversion
           hg clone -b quic https://hg.nginx.org/nginx-quic
           cd nginx-quic
-          wget https://raw.githubusercontent.com/rosebe/patch/master/nginx.patch
-          patch -p1 < nginx.patch
+          # wget https://raw.githubusercontent.com/rosebe/patch/master/nginx.patch
+          # patch -p1 < nginx.patch
           
           ./auto/configure \
             --prefix=/etc/nginx \
