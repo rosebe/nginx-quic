@@ -133,8 +133,8 @@ jobs:
             --with-pcre=../pcre-8.45 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v2_hpack_enc \
-            --with-cc-opt='-O2 -fno-strict-aliasing -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic -Wl -static -static-libgcc' \
-            --with-ld-opt='-Wl,-z,relro -Wl,-z,now -static'
+            --with-cc-opt='-O2 -fno-strict-aliasing -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4 -m64 -mtune=generic' \
+            --with-ld-opt='-Wl,-z,relro -Wl,-z'
           make -j$(nproc --all)
           echo ""
           echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
