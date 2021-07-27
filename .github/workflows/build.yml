@@ -91,7 +91,12 @@ jobs:
         run: |
           sudo apt-get install hgsubversion
           hg clone -b quic https://hg.nginx.org/nginx-quic
+          mv ./nginx-quic/auto/options ./nginx-quic/auto/options-backup
+          cp ./options-patch ./nginx-quic/auto/options
+          
           cd nginx-quic
+          wget https://raw.githubusercontent.com/rosebe/patch/master/nginx.patch
+          patch -p1 < nginx.patch
                    
           ./auto/configure \
             --prefix=/etc/nginx \
@@ -136,6 +141,7 @@ jobs:
             --add-module=../ngx_brotli \
             --with-pcre=../pcre-8.45 --with-pcre-jit \
             --with-zlib=../zlib-cf \
+            --with-http_v2_hpack_enc \
             --with-http_v3_module \
             --with-http_quic_module \
             --with-stream_quic_module \
