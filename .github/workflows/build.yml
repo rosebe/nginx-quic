@@ -95,7 +95,7 @@ jobs:
           cp ./options-patch ./nginx-quic/auto/options
           
           cd nginx-quic
-          wget https://raw.githubusercontent.com/rosebe/patch/master/nginx.patch
+          cp ../nginx.patch ./nginx.patch
           patch -p1 < nginx.patch
                    
           ./auto/configure \
