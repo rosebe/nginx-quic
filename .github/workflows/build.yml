@@ -95,6 +95,9 @@ jobs:
           cp ./options-patch ./nginx-quic/auto/options
           
           cd nginx-quic
+          wget https://raw.githubusercontent.com/rosebe/patch/master/Enable_BoringSSL_OCSP.patch
+          patch -p1 < Enable_BoringSSL_OCSP.patch
+          
           cp ../nginx.patch ./nginx.patch
           patch -p1 < nginx.patch
                    
