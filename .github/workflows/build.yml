@@ -18,6 +18,10 @@ on:
   workflow_dispatch:
   release:
     types: [published]
+    
+# Set time zone
+env:
+  TZ: Asia/Shanghai
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -32,11 +36,7 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
-        
-        # Set time zone
-        env:
-          TZ: Asia/Shanghai
-              
+                              
       # Runs a set of commands using the runners shell
       - name: depend
         run: |
