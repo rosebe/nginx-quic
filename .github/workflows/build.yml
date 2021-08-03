@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: build nginx-quic beta 2
+name: build nginx-quic [Enable_BoringSSL_OCSP]
 
 # Controls when the action will run. 
 on:
@@ -9,11 +9,12 @@ on:
     branches:
       - main
       - b*
+      - E*
   pull_request:
     branches:
       - main
       - b*
-
+      - E* 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
   release:
@@ -91,6 +92,8 @@ jobs:
           
       - name: apt
         run: |
+          sudo apt-get update
+          sudo apt-get upgrade
           sudo apt-get install curl gnupg2 ca-certificates lsb-release tree
                     
       - name: hg
@@ -161,7 +164,7 @@ jobs:
           
       - uses: actions/upload-artifact@v2
         with:
-          name: nginx-quic
+          name: nginx-quic.Enable_BoringSSL_OCSP
           path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
       
         # Setting an environment variable
@@ -170,7 +173,8 @@ jobs:
         id: step_one
         shell: bash
         run: |
-          echo "ASSET_NAME=nginx-quic-static v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}') build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}') Enable_BoringSSL_OCSP \
+                           build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
           echo "TAG_NAME=v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')" >> $GITHUB_ENV
           echo "RELEASE_NAME=nginx-quic" v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')>> $GITHUB_ENV
           
