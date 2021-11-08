@@ -44,9 +44,9 @@ jobs:
           sudo apt-get install build-essential ca-certificates zlib1g-dev libpcre3 libpcre3-dev tar unzip libssl-dev wget curl git cmake ninja-build golang
           
       - name: Setup Go environment
-        uses: actions/setup-go@v2.1.3
+        uses: actions/setup-go@v2.1.4
         with:
-         go-version: ^1.16
+         go-version: ^1.17
          stable: false
   
       - name: boringssl
@@ -85,7 +85,7 @@ jobs:
           
       - name: pcre
         run: |
-          curl -L -o pcre-8.45.tar.gz https://ftp.pcre.org/pub/pcre/pcre-8.45.tar.gz
+          curl -L -o pcre-8.45.tar.gz https://sourceforge.net/projects/pcre/files/pcre/8.45/pcre-8.45.tar.gz/download
           tar xzvf pcre-8.45.tar.gz
                               
           
