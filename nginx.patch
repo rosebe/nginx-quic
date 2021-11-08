@@ -20,8 +20,7 @@ diff --color -uNr a/auto/modules b/auto/modules
 diff --color -uNr a/auto/options b/auto/options
 --- a/auto/options	2021-11-02 22:49:22.000000000 +0800
 +++ b/auto/options	2021-11-04 19:41:20.977744024 +0800
-@@ -59,6 +59,7 @@
- HTTP_GZIP=YES
+@@ -62,6 +62,7 @@			  
  HTTP_SSL=NO
  HTTP_QUIC=NO
  HTTP_V2=NO
@@ -29,9 +28,7 @@ diff --color -uNr a/auto/options b/auto/options
  HTTP_V3=NO
  HTTP_SSI=YES
  HTTP_REALIP=NO
- HTTP_XSLT=NO
-@@ -227,6 +228,7 @@
- 
+@@ -239,6 +240,7 @@
          --with-http_ssl_module)          HTTP_SSL=YES               ;;
          --with-http_quic_module)         HTTP_QUIC=YES              ;;
          --with-http_v2_module)           HTTP_V2=YES                ;;
@@ -39,9 +36,7 @@ diff --color -uNr a/auto/options b/auto/options
          --with-http_v3_module)           HTTP_V3=YES                ;;
          --with-http_realip_module)       HTTP_REALIP=YES            ;;
          --with-http_addition_module)     HTTP_ADDITION=YES          ;;
-         --with-http_xslt_module)         HTTP_XSLT=YES              ;;
-@@ -443,6 +445,7 @@
- 
+@@ -460,6 +462,7 @@
    --with-http_ssl_module             enable ngx_http_ssl_module
    --with-http_quic_module            enable ngx_http_quic_module
    --with-http_v2_module              enable ngx_http_v2_module
@@ -49,7 +44,6 @@ diff --color -uNr a/auto/options b/auto/options
    --with-http_v3_module              enable ngx_http_v3_module
    --with-http_realip_module          enable ngx_http_realip_module
    --with-http_addition_module        enable ngx_http_addition_module
-   --with-http_xslt_module            enable ngx_http_xslt_module
 diff --color -uNr a/src/core/ngx_murmurhash.c b/src/core/ngx_murmurhash.c
 --- a/src/core/ngx_murmurhash.c	2021-11-02 22:49:22.000000000 +0800
 +++ b/src/core/ngx_murmurhash.c	2021-11-04 19:41:20.977744024 +0800
