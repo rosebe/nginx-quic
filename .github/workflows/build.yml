@@ -100,8 +100,8 @@ jobs:
         run: |
           sudo apt-get install hgsubversion
           hg clone -b quic https://hg.nginx.org/nginx-quic
-          mv ./nginx-quic/auto/options ./nginx-quic/auto/options-backup
-          cp ./options-patch ./nginx-quic/auto/options
+          # mv ./nginx-quic/auto/options ./nginx-quic/auto/options-backup
+          # cp ./options-patch ./nginx-quic/auto/options
           
           cd nginx-quic
           wget https://raw.githubusercontent.com/rosebe/patch/master/Enable_BoringSSL_OCSP.patch
