@@ -98,7 +98,7 @@ jobs:
       - name: Set up GCC
         uses: egor-tensin/setup-gcc@v1
         with:
-         version: 10
+         version: 11
          platform: x64
 
                     
@@ -163,7 +163,7 @@ jobs:
             --with-http_v3_module \
             --with-http_quic_module \
             --with-stream_quic_module \
-            --with-cc-opt='-I../boringssl/include -static -static-libgcc' \
+            --with-cc-opt='-I../boringssl/include -static -static-libgcc -Wno-vla-parameter' \
             --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto -static'
          
           make -j$(nproc --all)
