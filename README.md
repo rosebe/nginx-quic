@@ -5,3 +5,12 @@
 ##### [测试你的浏览器对quic的支持](https://quic.nginx.org/quic.html)
 ##### [测试服务器对HTTP/3的支持](https://http3check.net)
 
+##### [官方介绍](https://quic.nginx.org/readme.html)
+
+
+To enable GSO (Generic Segmentation Offloading):
+
+    quic_gso on;
+
+    By default this Linux-specific optimization is disabled.
+    Enable if your network interface is configured to support GSO.
