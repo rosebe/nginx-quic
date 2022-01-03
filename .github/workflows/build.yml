@@ -36,7 +36,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v2.4.0
                               
       # Runs a set of commands using the runners shell
       - name: depend
@@ -44,7 +44,7 @@ jobs:
           sudo apt-get install build-essential ca-certificates zlib1g-dev libpcre3 libpcre3-dev tar unzip libssl-dev wget curl git cmake ninja-build golang
           
       - name: Setup Go environment
-        uses: actions/setup-go@v2.1.4
+        uses: actions/setup-go@v2.1.5
         with:
          go-version: ^1.17
          stable: false
@@ -88,7 +88,11 @@ jobs:
         run: |
           curl -L -o pcre-8.45.tar.gz https://sourceforge.net/projects/pcre/files/pcre/8.45/pcre-8.45.tar.gz/download
           tar xzvf pcre-8.45.tar.gz
-                              
+      
+      - name: pcre2
+        run: |
+          wget https://github.com/PhilipHazel/pcre2/releases/download/pcre2-10.39/pcre2-10.39.tar.gz
+          tar xzvf pcre2-10.39.tar.gz
 
       - name: apt
         run: |
@@ -158,7 +162,7 @@ jobs:
             --with-stream_ssl_module \
             --with-stream_ssl_preread_module \
             --add-module=../ngx_brotli \
-            --with-pcre=../pcre-8.45 --with-pcre-jit \
+            --with-pcre=../pcre2-10.39 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v2_hpack_enc \
             --with-http_v3_module \
@@ -168,7 +172,7 @@ jobs:
          
           make -j$(nproc --all)
           
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v2.3.1
         with:
           name: nginx-quic.Enable_BoringSSL_OCSP
           path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
