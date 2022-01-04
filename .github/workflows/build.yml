@@ -91,8 +91,12 @@ jobs:
       
       - name: pcre2
         run: |
-          wget https://github.com/PhilipHazel/pcre2/releases/download/pcre2-10.39/pcre2-10.39.tar.gz
-          tar xzvf pcre2-10.39.tar.gz
+          git clone https://github.com/PhilipHazel/pcre2.git 
+          cd pcre2
+          git checkout .
+          git pull
+          ./autogen.sh
+          cd ..
 
       - name: apt
         run: |
@@ -162,7 +166,7 @@ jobs:
             --with-stream_ssl_module \
             --with-stream_ssl_preread_module \
             --add-module=../ngx_brotli \
-            --with-pcre=../pcre2-10.39 --with-pcre-jit \
+            --with-pcre=../pcre2 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v2_hpack_enc \
             --with-http_v3_module \
