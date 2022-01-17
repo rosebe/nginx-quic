@@ -58,7 +58,7 @@ jobs:
           git submodule update --init --recursive
           mkdir build
           cd build
-          ../configer -static
+          ../Configure -static
           cd ../..
           mkdir -p openssl/.openssl/lib
           cp openssl/build/crypto/libcrypto.a openssl/build/ssl/libssl.a openssl/.openssl/lib
