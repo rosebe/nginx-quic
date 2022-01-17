@@ -169,8 +169,9 @@ jobs:
             --with-http_v2_hpack_enc \
             --with-http_v3_module \
             --with-stream_quic_module \
-            --with-cc-opt='-I../openssl/include -static -static-libgcc' \
-            --with-ld-opt='-L../openssl/build -static'
+            --with-openssl=../openssl \
+            --with-cc-opt='-static -static-libgcc' \
+            --with-ld-opt='-static'
          
           make -j$(nproc --all)
           
