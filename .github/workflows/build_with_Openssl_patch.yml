@@ -59,6 +59,7 @@ jobs:
           mkdir build
           cd build
           ../Configure -static
+          make -j$(nproc --all)
           cd ../..
           mkdir -p openssl/.openssl/lib
           cp openssl/build/crypto/libcrypto.a openssl/build/ssl/libssl.a openssl/.openssl/lib
