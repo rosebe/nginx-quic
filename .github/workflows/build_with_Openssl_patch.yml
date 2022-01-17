@@ -58,8 +58,7 @@ jobs:
           git submodule update --init --recursive
           mkdir build
           cd build
-          cmake -GNinja ..
-          ninja
+          ../configer -static
           cd ../..
           mkdir -p openssl/.openssl/lib
           cp openssl/build/crypto/libcrypto.a openssl/build/ssl/libssl.a openssl/.openssl/lib
