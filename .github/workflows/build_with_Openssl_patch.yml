@@ -51,7 +51,7 @@ jobs:
   
       - name: openssl
         run: |
-          git clone --depth=1 https://github.com/quictls/openssl.git
+          git clone https://github.com/quictls/openssl.git
           cd openssl
           git checkout .
           git pull
