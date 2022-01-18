@@ -169,8 +169,14 @@ jobs:
             --with-http_v2_hpack_enc \
             --with-http_v3_module \
             --with-stream_quic_module \
-            --with-cc-opt='-I../openssl/include -static -static-libgcc -Wno-error' \
-            --with-ld-opt='-L../openssl/build/ssl -L../openssl/build/crypto -static' 
+            --with-cc-opt='-I../openssl/include \
+                           -I../openssl/include/openssl \
+                           -I../openssl/include/crypto \
+                           -static -static-libgcc -Wno-error' \
+            --with-ld-opt='-L../openssl/build \
+                           -L../openssl/build/ssl \
+                           -L../openssl/build/crypto \
+                           -static' 
          
           make -j$(nproc --all)
           
