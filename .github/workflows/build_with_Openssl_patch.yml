@@ -59,14 +59,11 @@ jobs:
           mkdir build
           cd build
           ../Configure
-          make -j$(nproc --all)
-          cd ../..
-          mkdir -p openssl/.openssl/lib
-          cp openssl/build/libcrypto.a openssl/build/libssl.a openssl/.openssl/lib
-          cd openssl/.openssl
-          ln -s ../include .
-          cd ../..
-            
+          sudo make -j$(nproc --all)
+          sudo make install
+          sudo ldconfig /usr/local/lib64/
+          openssl version -d
+                      
       - name: brotli
         run: |
           git clone https://github.com/google/ngx_brotli.git
@@ -171,16 +168,10 @@ jobs:
             --with-stream_quic_module \
             --with-openssl="../openssl"  \
             --with-openssl-opt=enable-ktls \
-            --with-cc-opt='-I../openssl/include \
-                           -I../openssl/include/openssl \
-                           -I../openssl/include/crypto \
-                           -static -static-libgcc -Wno-error' \
-            --with-ld-opt='-L../openssl/build \
-                           -L../openssl/build/ssl \
-                           -L../openssl/build/crypto \
-                           -static' 
+            --with-cc-opt='-static -static-libgcc -Wno-error' \
+            --with-ld-opt='-static' 
          
-          make -j$(nproc --all)
+          sudo make -j$(nproc --all)
           
       - uses: actions/upload-artifact@v2.3.1
         with:
