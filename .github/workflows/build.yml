@@ -56,13 +56,14 @@ jobs:
           git checkout .
           git pull
           git submodule update --init --recursive
-          mkdir build
-          cd build
-          ../Configure
-          sudo make -j$(nproc --all)
-          sudo make install
-          sudo ldconfig /usr/local/lib64/
-          openssl version -d
+          #mkdir build
+          #cd build
+          #../Configure
+          #sudo make -j$(nproc --all)
+          #sudo make install
+          #sudo ldconfig /usr/local/lib64/
+          #openssl version -d
+          cd ..
                       
       - name: brotli
         run: |
