@@ -247,6 +247,8 @@ jobs:
           echo "GITHUB_ENV 2: ${GITHUB_ENV} "
           
           echo "$(tree -d)"
+          echo "$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags)"
+          echo "$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')"
           
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
