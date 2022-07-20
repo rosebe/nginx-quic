@@ -129,6 +129,9 @@ jobs:
           
           cp ../nginx.patch ./nginx.patch
           patch -p1 < nginx.patch
+          
+          cp ../option.patch ./option.patch
+          patch -p1 < option.patch
                    
           ./auto/configure \
             --prefix=/etc/nginx \
