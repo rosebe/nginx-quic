@@ -115,11 +115,11 @@ jobs:
       - name: hg
         run: |
           sudo apt-get install hgsubversion
-          #hg clone -b quic https://hg.nginx.org/nginx-quic
+          hg clone -b quic https://hg.nginx.org/nginx-quic
           
-          wget https://hg.nginx.org/nginx-quic/archive/tip.tar.gz
-          tar xzvf tip.tar.gz
-          mv $(ls -l | grep nginx-quic | awk '{print $9}') nginx-quic
+          # wget https://hg.nginx.org/nginx-quic/archive/tip.tar.gz
+          # tar xzvf tip.tar.gz
+          # mv $(ls -l | grep nginx-quic | awk '{print $9}') nginx-quic
            
           cd nginx-quic
           
