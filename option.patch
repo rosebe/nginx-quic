@@ -1,5 +1,6 @@
---- options-a	2022-07-20 12:42:03.786299000 +0800
-+++ options-b	2022-07-20 12:53:45.323299000 +0800
+diff -urNa a/auto/options b/auto/options
+--- a/auto/options	2022-07-20 12:42:03.786299000 +0800
++++ b/auto/options	2022-07-20 12:53:45.323299000 +0800
 @@ -59,6 +59,7 @@
  HTTP_GZIP=YES
  HTTP_SSL=NO
