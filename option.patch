@@ -1,27 +1,27 @@
 diff -urNa a/auto/options b/auto/options
---- a/auto/options	2022-07-20 12:42:03.786299000 +0800
-+++ b/auto/options	2022-07-20 12:53:45.323299000 +0800
-@@ -59,6 +59,7 @@
- HTTP_GZIP=YES
+--- a/auto/options	2021-11-10 19:36:36.000000000 +0800
++++ b/auto/options	2021-11-11 09:28:18.298660000 +0800
+@@ -62,6 +62,7 @@
  HTTP_SSL=NO
+ HTTP_QUIC=NO
  HTTP_V2=NO
 +HTTP_V2_HPACK_ENC=NO
+ HTTP_V3=NO
  HTTP_SSI=YES
  HTTP_REALIP=NO
- HTTP_XSLT=NO
-@@ -228,6 +229,7 @@
- 
+@@ -239,6 +240,7 @@
          --with-http_ssl_module)          HTTP_SSL=YES               ;;
+         --with-http_quic_module)         HTTP_QUIC=YES              ;;
          --with-http_v2_module)           HTTP_V2=YES                ;;
 +        --with-http_v2_hpack_enc)        HTTP_V2_HPACK_ENC=YES      ;;
+         --with-http_v3_module)           HTTP_V3=YES                ;;
          --with-http_realip_module)       HTTP_REALIP=YES            ;;
          --with-http_addition_module)     HTTP_ADDITION=YES          ;;
-         --with-http_xslt_module)         HTTP_XSLT=YES              ;;
-@@ -445,6 +447,7 @@
- 
+@@ -460,6 +462,7 @@
    --with-http_ssl_module             enable ngx_http_ssl_module
+   --with-http_quic_module            enable ngx_http_quic_module
    --with-http_v2_module              enable ngx_http_v2_module
 +  --with-http_v2_hpack_enc           enable ngx_http_v2_hpack_enc
+   --with-http_v3_module              enable ngx_http_v3_module
    --with-http_realip_module          enable ngx_http_realip_module
    --with-http_addition_module        enable ngx_http_addition_module
-   --with-http_xslt_module            enable ngx_http_xslt_module
