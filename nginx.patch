@@ -1,7 +1,8 @@
-Add HTTP2 HPACK Encoding Support.
-Add Dynamic TLS Record support.
+Add HTTP2 HPACK Encoding Support for nginx-quic.
+Add Dynamic TLS Record support for nginx-quic.
 
 Using: patch -p1 < nginx.patch
+
 
 diff -urNa a/auto/modules b/auto/modules
 --- a/auto/modules	2022-05-31 15:05:22.000000000 +0800
