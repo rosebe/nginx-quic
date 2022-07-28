@@ -4,9 +4,9 @@ Add Dynamic TLS Record support.
 Using: patch -p1 < nginx.patch
 
 diff -urNa a/auto/modules b/auto/modules
---- a/auto/modules	2021-11-10 19:36:36.000000000 +0800
-+++ b/auto/modules	2021-11-11 09:28:18.298660000 +0800
-@@ -467,6 +467,10 @@
+--- a/auto/modules	2022-05-31 15:05:22.000000000 +0800
++++ b/auto/modules	2022-07-28 10:15:00.897047000 +0800
+@@ -466,6 +466,10 @@
          . auto/module
      fi
  
@@ -18,8 +18,8 @@ diff -urNa a/auto/modules b/auto/modules
          ngx_module_name=ngx_http_static_module
          ngx_module_incs=
 diff -urNa a/src/core/ngx_murmurhash.c b/src/core/ngx_murmurhash.c
---- a/src/core/ngx_murmurhash.c	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/core/ngx_murmurhash.c	2021-11-11 09:28:18.299660000 +0800
+--- a/src/core/ngx_murmurhash.c	2022-05-31 15:05:22.000000000 +0800
++++ b/src/core/ngx_murmurhash.c	2022-07-28 10:15:00.898047000 +0800
 @@ -50,3 +50,63 @@
  
      return h;
@@ -85,8 +85,8 @@ diff -urNa a/src/core/ngx_murmurhash.c b/src/core/ngx_murmurhash.c
 +    return h;
 +}
 diff -urNa a/src/core/ngx_murmurhash.h b/src/core/ngx_murmurhash.h
---- a/src/core/ngx_murmurhash.h	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/core/ngx_murmurhash.h	2021-11-11 09:28:18.299660000 +0800
+--- a/src/core/ngx_murmurhash.h	2022-05-31 15:05:22.000000000 +0800
++++ b/src/core/ngx_murmurhash.h	2022-07-28 10:15:00.898047000 +0800
 @@ -15,5 +15,7 @@
  
  uint32_t ngx_murmur_hash2(u_char *data, size_t len);
@@ -96,9 +96,9 @@ diff -urNa a/src/core/ngx_murmurhash.h b/src/core/ngx_murmurhash.h
  
  #endif /* _NGX_MURMURHASH_H_INCLUDED_ */
 diff -urNa a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.c
---- a/src/event/ngx_event_openssl.c	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/event/ngx_event_openssl.c	2021-11-11 09:28:18.300660000 +0800
-@@ -1626,6 +1626,7 @@
+--- a/src/event/ngx_event_openssl.c	2022-05-31 15:05:22.000000000 +0800
++++ b/src/event/ngx_event_openssl.c	2022-07-28 10:15:00.900047000 +0800
+@@ -1629,6 +1629,7 @@
  
      sc->buffer = ((flags & NGX_SSL_BUFFER) != 0);
      sc->buffer_size = ssl->buffer_size;
@@ -106,7 +106,7 @@ diff -urNa a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.c
  
      sc->session_ctx = ssl->ctx;
  
-@@ -2592,6 +2593,41 @@
+@@ -2595,6 +2596,41 @@
  
      for ( ;; ) {
  
@@ -148,7 +148,7 @@ diff -urNa a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.c
          while (in && buf->last < buf->end && send < limit) {
              if (in->buf->last_buf || in->buf->flush) {
                  flush = 1;
-@@ -2731,6 +2767,9 @@
+@@ -2734,6 +2770,9 @@
  
      if (n > 0) {
  
@@ -159,8 +159,8 @@ diff -urNa a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.c
  
              c->read->handler = c->ssl->saved_read_handler;
 diff -urNa a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.h
---- a/src/event/ngx_event_openssl.h	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/event/ngx_event_openssl.h	2021-11-11 09:28:18.301660000 +0800
+--- a/src/event/ngx_event_openssl.h	2022-05-31 15:05:22.000000000 +0800
++++ b/src/event/ngx_event_openssl.h	2022-07-28 10:15:00.901047000 +0800
 @@ -86,10 +86,19 @@
  typedef struct ngx_ssl_ocsp_s  ngx_ssl_ocsp_t;
  
@@ -202,8 +202,8 @@ diff -urNa a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.h
  typedef struct ngx_ssl_sess_id_s  ngx_ssl_sess_id_t;
  
 diff -urNa a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ngx_http_ssl_module.c
---- a/src/http/modules/ngx_http_ssl_module.c	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/http/modules/ngx_http_ssl_module.c	2021-11-11 09:28:18.302660000 +0800
+--- a/src/http/modules/ngx_http_ssl_module.c	2022-05-31 15:05:22.000000000 +0800
++++ b/src/http/modules/ngx_http_ssl_module.c	2022-07-28 10:15:00.902047000 +0800
 @@ -296,6 +296,41 @@
        offsetof(ngx_http_ssl_srv_conf_t, reject_handshake),
        NULL },
@@ -246,7 +246,7 @@ diff -urNa a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ngx_http_
        ngx_null_command
  };
  
-@@ -628,6 +663,11 @@
+@@ -621,6 +656,11 @@
      sscf->ocsp_cache_zone = NGX_CONF_UNSET_PTR;
      sscf->stapling = NGX_CONF_UNSET;
      sscf->stapling_verify = NGX_CONF_UNSET;
@@ -258,7 +258,7 @@ diff -urNa a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ngx_http_
  
      return sscf;
  }
-@@ -703,6 +743,20 @@
+@@ -696,6 +736,20 @@
      ngx_conf_merge_str_value(conf->stapling_responder,
                           prev->stapling_responder, "");
  
@@ -279,7 +279,7 @@ diff -urNa a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ngx_http_
      conf->ssl.log = cf->log;
  
      if (conf->enable) {
-@@ -929,6 +983,28 @@
+@@ -922,6 +976,28 @@
          return NGX_CONF_ERROR;
      }
  
@@ -309,8 +309,8 @@ diff -urNa a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ngx_http_
  }
  
 diff -urNa a/src/http/modules/ngx_http_ssl_module.h b/src/http/modules/ngx_http_ssl_module.h
---- a/src/http/modules/ngx_http_ssl_module.h	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/http/modules/ngx_http_ssl_module.h	2021-11-11 09:28:18.302660000 +0800
+--- a/src/http/modules/ngx_http_ssl_module.h	2022-05-31 15:05:22.000000000 +0800
++++ b/src/http/modules/ngx_http_ssl_module.h	2022-07-28 10:15:00.902047000 +0800
 @@ -67,6 +67,12 @@
  
      u_char                         *file;
@@ -325,8 +325,8 @@ diff -urNa a/src/http/modules/ngx_http_ssl_module.h b/src/http/modules/ngx_http_
  
  
 diff -urNa a/src/http/v2/ngx_http_v2.c b/src/http/v2/ngx_http_v2.c
---- a/src/http/v2/ngx_http_v2.c	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/http/v2/ngx_http_v2.c	2021-11-11 09:28:18.303660000 +0800
+--- a/src/http/v2/ngx_http_v2.c	2022-05-31 15:05:22.000000000 +0800
++++ b/src/http/v2/ngx_http_v2.c	2022-07-28 10:15:00.903047000 +0800
 @@ -274,6 +274,8 @@
  
      h2c->frame_size = NGX_HTTP_V2_DEFAULT_FRAME_SIZE;
@@ -352,8 +352,8 @@ diff -urNa a/src/http/v2/ngx_http_v2.c b/src/http/v2/ngx_http_v2.c
  
          default:
 diff -urNa a/src/http/v2/ngx_http_v2_encode.c b/src/http/v2/ngx_http_v2_encode.c
---- a/src/http/v2/ngx_http_v2_encode.c	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/http/v2/ngx_http_v2_encode.c	2021-11-11 09:28:18.303660000 +0800
+--- a/src/http/v2/ngx_http_v2_encode.c	2022-05-31 15:05:22.000000000 +0800
++++ b/src/http/v2/ngx_http_v2_encode.c	2022-07-28 10:15:00.904047000 +0800
 @@ -10,7 +10,7 @@
  #include <ngx_http.h>
  
@@ -373,8 +373,8 @@ diff -urNa a/src/http/v2/ngx_http_v2_encode.c b/src/http/v2/ngx_http_v2_encode.c
  {
      if (value < prefix) {
 diff -urNa a/src/http/v2/ngx_http_v2_filter_module.c b/src/http/v2/ngx_http_v2_filter_module.c
---- a/src/http/v2/ngx_http_v2_filter_module.c	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/http/v2/ngx_http_v2_filter_module.c	2021-11-11 09:28:18.304660000 +0800
+--- a/src/http/v2/ngx_http_v2_filter_module.c	2022-05-31 15:05:22.000000000 +0800
++++ b/src/http/v2/ngx_http_v2_filter_module.c	2022-07-28 10:15:00.905047000 +0800
 @@ -23,10 +23,53 @@
  #define ngx_http_v2_literal_size(h)                                           \
      (ngx_http_v2_integer_octets(sizeof(h) - 1) + sizeof(h) - 1)
@@ -651,7 +651,7 @@ diff -urNa a/src/http/v2/ngx_http_v2_filter_module.c b/src/http/v2/ngx_http_v2_f
      }
  
      fin = r->header_only
-@@ -998,6 +964,7 @@
+@@ -997,6 +963,7 @@
  
      for (i = 0; i < NGX_HTTP_V2_PUSH_HEADERS; i++) {
          len += binary[i].len;
@@ -659,7 +659,7 @@ diff -urNa a/src/http/v2/ngx_http_v2_filter_module.c b/src/http/v2/ngx_http_v2_f
      }
  
      pos = ngx_pnalloc(r->pool, len);
-@@ -1007,12 +974,17 @@
+@@ -1006,12 +973,17 @@
  
      start = pos;
  
@@ -683,7 +683,7 @@ diff -urNa a/src/http/v2/ngx_http_v2_filter_module.c b/src/http/v2/ngx_http_v2_f
  
      ngx_log_debug0(NGX_LOG_DEBUG_HTTP, fc->log, 0,
                     "http2 push header: \":method: GET\"");
-@@ -1022,8 +994,7 @@
+@@ -1021,8 +993,7 @@
      ngx_log_debug1(NGX_LOG_DEBUG_HTTP, fc->log, 0,
                     "http2 push header: \":path: %V\"", path);
  
@@ -693,7 +693,7 @@ diff -urNa a/src/http/v2/ngx_http_v2_filter_module.c b/src/http/v2/ngx_http_v2_f
  
      ngx_log_debug1(NGX_LOG_DEBUG_HTTP, fc->log, 0,
                     "http2 push header: \":scheme: %V\"", &r->schema);
-@@ -1048,11 +1019,15 @@
+@@ -1047,11 +1018,15 @@
              continue;
          }
  
@@ -711,8 +711,8 @@ diff -urNa a/src/http/v2/ngx_http_v2_filter_module.c b/src/http/v2/ngx_http_v2_f
  
      frame = ngx_http_v2_create_push_frame(r, start, pos);
 diff -urNa a/src/http/v2/ngx_http_v2.h b/src/http/v2/ngx_http_v2.h
---- a/src/http/v2/ngx_http_v2.h	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/http/v2/ngx_http_v2.h	2021-11-11 09:28:18.305660000 +0800
+--- a/src/http/v2/ngx_http_v2.h	2022-05-31 15:05:22.000000000 +0800
++++ b/src/http/v2/ngx_http_v2.h	2022-07-28 10:15:00.906047000 +0800
 @@ -51,6 +51,14 @@
  #define NGX_HTTP_V2_MAX_WINDOW           ((1U << 31) - 1)
  #define NGX_HTTP_V2_DEFAULT_WINDOW       65535
@@ -842,8 +842,8 @@ diff -urNa a/src/http/v2/ngx_http_v2.h b/src/http/v2/ngx_http_v2.h
 +
  #endif /* _NGX_HTTP_V2_H_INCLUDED_ */
 diff -urNa a/src/http/v2/ngx_http_v2_table.c b/src/http/v2/ngx_http_v2_table.c
---- a/src/http/v2/ngx_http_v2_table.c	2021-11-10 19:36:36.000000000 +0800
-+++ b/src/http/v2/ngx_http_v2_table.c	2021-11-11 09:28:18.305660000 +0800
+--- a/src/http/v2/ngx_http_v2_table.c	2022-05-31 15:05:22.000000000 +0800
++++ b/src/http/v2/ngx_http_v2_table.c	2022-07-28 10:15:00.906047000 +0800
 @@ -361,3 +361,434 @@
  
      return NGX_OK;
