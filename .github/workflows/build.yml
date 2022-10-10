@@ -36,7 +36,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3.0.0
+      - uses: actions/checkout@v3.1.0
                               
       # Runs a set of commands using the runners shell
       - name: depend
@@ -46,7 +46,7 @@ jobs:
       - name: Setup Go environment
         uses: actions/setup-go@v3.0.0
         with:
-         go-version: ^1.17
+         go-version: ^1.19
          check-latest: true
   
       - name: boringssl
