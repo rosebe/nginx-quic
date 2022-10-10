@@ -29,7 +29,7 @@ jobs:
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     
     if: github.event.repository.owner.id == github.event.sender.id
     
@@ -108,13 +108,13 @@ jobs:
       - name: Set up GCC
         uses: egor-tensin/setup-gcc@v1
         with:
-         version: 11
+         version: 12
          platform: x64
 
                     
       - name: hg
         run: |
-          sudo apt-get install hgsubversion
+          sudo apt-get -y install subversion-tools
           hg clone -b quic https://hg.nginx.org/nginx-quic
           
           # wget https://hg.nginx.org/nginx-quic/archive/tip.tar.gz
