@@ -184,7 +184,7 @@ jobs:
          
           make -j$(nproc --all)
           
-      - uses: actions/upload-artifact@v3.1.1
+      - uses: actions/upload-artifact@v3.1.2
         with:
           name: nginx-quic.Enable_BoringSSL_OCSP
           path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
@@ -259,7 +259,7 @@ jobs:
           echo "$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')"
           
       - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@2.4.0
      #  if: github.event_name == 'release'
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}          
