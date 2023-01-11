@@ -258,7 +258,7 @@ jobs:
         uses: svenstaro/upload-release-action@2.4.0
      #  if: github.event_name == 'release'
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}          
+          repo_token: ${{ github.token }}          
           tag: ${{ env.TAG_NAME }}
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
