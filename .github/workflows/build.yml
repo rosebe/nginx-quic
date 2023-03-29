@@ -43,11 +43,11 @@ jobs:
         run: |
           sudo apt-get install build-essential ca-certificates zlib1g-dev libpcre3 libpcre3-dev tar unzip libssl-dev wget curl git cmake ninja-build golang
           
-      - name: Setup Go environment
-        uses: actions/setup-go@v4.0.0
-        with:
-         go-version: ^1.20
-         check-latest: true
+      #- name: Setup Go environment
+      #  uses: actions/setup-go@v4.0.0
+      #  with:
+      #   go-version: ^1.20
+      #   check-latest: true
   
       - name: boringssl
         run: |
@@ -114,11 +114,11 @@ jobs:
       - name: hg
         run: |
           sudo apt-get -y install subversion-tools
-          # hg clone -b quic https://hg.nginx.org/nginx-quic
+          hg clone -b quic https://hg.nginx.org/nginx-quic
           
-           wget https://hg.nginx.org/nginx-quic/archive/tip.tar.gz
-           tar xzvf tip.tar.gz
-           mv $(ls -l | grep nginx-quic | awk '{print $9}') nginx-quic
+          # wget https://hg.nginx.org/nginx-quic/archive/tip.tar.gz
+          # tar xzvf tip.tar.gz
+          # mv $(ls -l | grep nginx-quic | awk '{print $9}') nginx-quic
           
           # mv ./nginx-quic/auto/options ./nginx-quic/auto/options-backup
           # cp ./options-patch ./nginx-quic/auto/options
@@ -177,6 +177,7 @@ jobs:
             --with-pcre=../pcre2 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v2_hpack_enc \
+            --with-http_v3_module \
             --with-stream_quic_module \
             --with-cc-opt='-I../boringssl/include -static -static-libgcc' \
             --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto -static'
