@@ -174,7 +174,7 @@ jobs:
             --with-zlib=../zlib-cf \
             --with-http_v2_hpack_enc \
             --with-http_v3_module \
-            --with-stream_quic_module \
+          # --with-stream_quic_module \
             --with-openssl="../openssl"  \
             --with-openssl-opt=enable-ktls \
             --with-cc-opt='-static -static-libgcc -Wno-error' \
