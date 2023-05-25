@@ -116,7 +116,8 @@ jobs:
       - name: hg
         run: |
           sudo apt-get -y install subversion-tools
-          hg clone -b quic https://hg.nginx.org/nginx-quic
+          # hg clone -b quic https://hg.nginx.org/nginx-quic
+          hg clone -b default https://hg.nginx.org/nginx-quic
           
           # wget https://hg.nginx.org/nginx-quic/archive/tip.tar.gz
           # tar xzvf tip.tar.gz
