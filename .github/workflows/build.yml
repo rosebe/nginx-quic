@@ -126,11 +126,14 @@ jobs:
            
           cd nginx-quic
           
-          cp ../nginx.patch ./nginx.patch
-          patch -p1 < nginx.patch
+          cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
+          patch -p1 < nginx_dynamic_tls_records.patch
           
-          cp ../option.patch ./option.patch
-          patch -p1 < option.patch
+          #cp ../nginx.patch ./nginx.patch
+          #patch -p1 < nginx.patch
+          
+          #cp ../option.patch ./option.patch
+          #patch -p1 < option.patch
                    
           ./auto/configure \
             --prefix=/etc/nginx \
@@ -175,7 +178,6 @@ jobs:
             --add-module=../ngx_brotli \
             --with-pcre=../pcre2 --with-pcre-jit \
             --with-zlib=../zlib-cf \
-            --with-http_v2_hpack_enc \
             --with-http_v3_module \
             --with-openssl="../openssl"  \
             --with-openssl-opt=enable-ktls \
