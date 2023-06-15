@@ -36,7 +36,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3.5.2
+      - uses: actions/checkout@v3.5.3
                               
       # Runs a set of commands using the runners shell
       - name: depend
@@ -128,11 +128,14 @@ jobs:
           wget https://raw.githubusercontent.com/rosebe/patch/master/Enable_BoringSSL_OCSP.patch
           patch -p1 < Enable_BoringSSL_OCSP.patch
           
-          cp ../nginx.patch ./nginx.patch
-          patch -p1 < nginx.patch
+          cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
+          patch -p1 < nginx_dynamic_tls_records.patch
           
-          cp ../option.patch ./option.patch
-          patch -p1 < option.patch
+          #cp ../nginx.patch ./nginx.patch
+          #patch -p1 < nginx.patch
+          
+          #cp ../option.patch ./option.patch
+          #patch -p1 < option.patch
                    
           ./auto/configure \
             --prefix=/etc/nginx \
@@ -177,7 +180,6 @@ jobs:
             --add-module=../ngx_brotli \
             --with-pcre=../pcre2 --with-pcre-jit \
             --with-zlib=../zlib-cf \
-            --with-http_v2_hpack_enc \
             --with-http_v3_module \
             --with-cc-opt='-I../boringssl/include -static -static-libgcc' \
             --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto -static'
