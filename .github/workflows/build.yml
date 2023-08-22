@@ -182,7 +182,7 @@ jobs:
             --with-zlib=../zlib-cf \
             --with-http_v3_module \
             --with-cc-opt='-I../boringssl/include -static -static-libgcc' \
-            --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto'
+            --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto -Bstatic'
          
           make -j$(nproc --all)
           
