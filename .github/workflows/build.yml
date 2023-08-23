@@ -121,7 +121,7 @@ jobs:
          platform: x64
 
                     
-      - name: hg-nginx-quic_build
+      - name: hg nginx-quic build
         run: |
           sudo apt-get -y install subversion-tools
           # hg clone -b quic https://hg.nginx.org/nginx-quic
