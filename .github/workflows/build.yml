@@ -87,8 +87,8 @@ jobs:
           #git clone https://github.com/google/brotli.git
           git clone -b brotli-fix https://github.com/rosebe/brotli.git
           cd brotli
-          ##Commits on Aug 29, 2023
-          #git reset --hard ed738e8
+          ##Commits on Jul 28, 2023
+          #git reset --hard 0300be36ba019c55d2edc48353270fa18008d49c
           cd ../../..
           
       - name: zlib-cf
