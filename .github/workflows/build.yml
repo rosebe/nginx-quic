@@ -194,7 +194,7 @@ jobs:
          
           sudo make -j$(nproc --all)
           
-      - uses: actions/upload-artifact@v3.1.2
+      - uses: actions/upload-artifact@v3.1.3
         with:
           name: nginx-quic.Openssl
           path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
