@@ -270,7 +270,7 @@ jobs:
           echo "$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')"
           
       - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@2.7.0
+        uses: svenstaro/upload-release-action@fe688929210446b58cd7990c2352d8c652c822a3
      #  if: github.event_name == 'release'
         with:
           repo_token: ${{ github.token }}          
