@@ -68,7 +68,7 @@ jobs:
           mkdir -p boringssl/.openssl/lib
           cp boringssl/build/crypto/libcrypto.a boringssl/build/ssl/libssl.a boringssl/.openssl/lib
           cd boringssl/.openssl
-          ln -s ../include .
+          ln -s ../include include
           cd ../..
             
       - name: brotli
@@ -190,6 +190,7 @@ jobs:
             --with-pcre=../pcre2 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v3_module \
+            --with-openssl="../boringssl"
             --with-cc-opt='-I../boringssl/include -static -static-libgcc' \
             --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto -static'
          
