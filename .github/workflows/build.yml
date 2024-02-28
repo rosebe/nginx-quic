@@ -194,7 +194,7 @@ jobs:
             --with-cc-opt='-I../boringssl/.openssl/include/ -static -static-libgcc' \
             --with-ld-opt='-L../boringssl/.openssl/lib/ -static'
             
-          touch boringssl/.openssl/include/openssl/ssl.h
+          touch ../boringssl/.openssl/include/openssl/ssl.h
           make -j$(nproc --all)
           
       - uses: actions/upload-artifact@v4.3.0
