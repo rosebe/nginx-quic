@@ -279,5 +279,4 @@ jobs:
           file: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
           body: "Happy play "
           overwrite: true
-          file_glob: false
-		  
+          file_glob: false	  
