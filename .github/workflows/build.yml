@@ -46,19 +46,19 @@ jobs:
           sudo apt-get install build-essential ca-certificates \
                                zlib1g-dev libpcre3 libpcre3-dev libssl-dev \
                                git cmake ninja-build gnupg2 lsb-release libunwind-dev \
-                               tar unzip  wget curl tree perl-base openssl 
+                               tar unzip  wget curl tree perl-base 
                                
                                
           
-      - name: Setup Go environment
-        uses: actions/setup-go@v4.0.0
-        with:
-         go-version: ^1.21
-         check-latest: true
+      #- name: Setup Go environment
+      #  uses: actions/setup-go@v4.0.0
+      #  with:
+      #   go-version: ^1.20
+      #   check-latest: true
   
       - name: boringssl
         run: |
-          git clone https://github.com/google/boringssl.git
+          git clone --depth=1 https://github.com/google/boringssl.git
           cd boringssl
           mkdir build
           cd build
@@ -68,9 +68,9 @@ jobs:
           mkdir -p boringssl/.openssl/lib
           cp boringssl/build/crypto/libcrypto.a boringssl/build/ssl/libssl.a boringssl/.openssl/lib
           cd boringssl/.openssl
-          cp -rf ../include include
+          ln -s ../include .
           cd ../..
-          
+            
       - name: brotli
         run: |
           git clone https://github.com/google/ngx_brotli.git
@@ -112,7 +112,6 @@ jobs:
           git pull
           ./autogen.sh
           cd ..
-
       - name: Set up GCC
         uses: egor-tensin/setup-gcc@v1.3
         with:
@@ -190,11 +189,9 @@ jobs:
             --with-pcre=../pcre2 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v3_module \
-            --with-openssl="../boringssl"
-            --with-cc-opt='-I../boringssl/.openssl/include/ -static -static-libgcc' \
-            --with-ld-opt='-L../boringssl/.openssl/lib/ -static'
-            
-          touch ../boringssl/.openssl/include/openssl/ssl.h
+            --with-cc-opt='-I../boringssl/include -static -static-libgcc' \
+            --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto -static'
+         
           make -j$(nproc --all)
           
       - uses: actions/upload-artifact@v4.3.0
@@ -283,3 +280,4 @@ jobs:
           body: "Happy play "
           overwrite: true
           file_glob: false
+		  
