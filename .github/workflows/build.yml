@@ -60,6 +60,7 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/google/boringssl.git
           cd boringssl
+          git reset --hard ea003bdaab1a6611b1a09f4e7f4cae3fa7390588
           mkdir build
           cd build
           cmake -GNinja ..
