@@ -58,10 +58,10 @@ jobs:
   
       - name: boringssl
         run: |
-          #git clone --depth=1 https://github.com/google/boringssl.git
-          git clone https://github.com/google/boringssl.git
+          git clone --depth=1 https://github.com/google/boringssl.git
+          #git clone https://github.com/google/boringssl.git
           cd boringssl
-          git reset --hard 0568c2c1dbff4e1de4d5a63fbaf7d13925df27fa
+          #git reset --hard 0568c2c1dbff4e1de4d5a63fbaf7d13925df27fa
           mkdir build
           cd build
           cmake -GNinja ..
