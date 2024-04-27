@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: build nginx-quic with Openssl
+name: build nginx-quic with Openssl , support ngx_http_geoip2_module 
 
 # Controls when the action will run. 
 on:
@@ -101,10 +101,13 @@ jobs:
           git submodule update --init --recursive
           cd ..
           
-      #- name: pcre
-        #run: |
-          #curl -L -o pcre-8.45.tar.gz https://sourceforge.net/projects/pcre/files/pcre/8.45/pcre-8.45.tar.gz/download
-          #tar xzvf pcre-8.45.tar.gz
+      - name: GeoLite2
+        run: |
+          git clone https://github.com/leev/ngx_http_geoip2_module.git
+          cd ngx_http_geoip2_module
+          git checkout .
+          git pull
+          cd ..
       
       - name: pcre2
         run: |
@@ -187,6 +190,7 @@ jobs:
             --with-pcre=../pcre2 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v3_module \
+            --add-module=/path/to/ngx_http_geoip2_module \
             --with-openssl=../openssl  \
             --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
             --with-cc-opt='-static -static-libgcc' \
