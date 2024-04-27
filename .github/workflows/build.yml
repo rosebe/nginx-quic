@@ -46,9 +46,10 @@ jobs:
           sudo apt-get install build-essential ca-certificates \
                                zlib1g-dev libpcre3 libpcre3-dev libssl-dev \
                                git cmake ninja-build gnupg2 lsb-release libunwind-dev \
-                               tar unzip  wget curl tree perl-base 
-                                                                        
-          
+                               tar unzip  wget curl tree perl-base
+          sudo add-apt-repository ppa:maxmind/ppa
+          sudo apt install libmaxminddb0 libmaxminddb-dev mmdb-bin
+
       #- name: Setup Go environment
       #  uses: actions/setup-go@v4.0.0
       #  with:
