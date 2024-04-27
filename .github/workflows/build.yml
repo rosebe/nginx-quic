@@ -190,7 +190,7 @@ jobs:
             --with-pcre=../pcre2 --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v3_module \
-            --add-module=/path/to/ngx_http_geoip2_module \
+            --add-module=../ngx_http_geoip2_module \
             --with-openssl=../openssl  \
             --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
             --with-cc-opt='-static -static-libgcc' \
