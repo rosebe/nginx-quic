@@ -36,7 +36,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4.1.2
+      - uses: actions/checkout@v4.1.6
                               
       # Runs a set of commands using the runners shell
       - name: depend
@@ -199,7 +199,7 @@ jobs:
          
           sudo make -j$(nproc --all)
           
-      - uses: actions/upload-artifact@v4.3.2
+      - uses: actions/upload-artifact@v4.3.3
         with:
           name: nginx-quic.Openssl
           path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
