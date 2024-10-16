@@ -1,3 +1,6 @@
+Add Dynamic TLS Record support.
+Using => patch -p1 < nginx.patch
+
 What we do now:
 We use a static record size of 4K. This gives a good balance of latency and
 throughput.
