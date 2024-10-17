@@ -29,14 +29,14 @@ jobs:
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     
     if: github.event.repository.owner.id == github.event.sender.id
     
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v4.2.1
                               
       # Runs a set of commands using the runners shell
       - name: depend
@@ -51,7 +51,7 @@ jobs:
                                
           
       #- name: Setup Go environment
-      #  uses: actions/setup-go@v4.0.0
+      #  uses: actions/setup-go@v4.0.1
       #  with:
       #   go-version: ^1.20
       #   check-latest: true
@@ -61,7 +61,7 @@ jobs:
           #git clone --depth=1 https://github.com/google/boringssl.git
           git clone https://github.com/google/boringssl.git
           cd boringssl
-          git reset --hard 0568c2c1dbff4e1de4d5a63fbaf7d13925df27fa
+          #git reset --hard 0568c2c1dbff4e1de4d5a63fbaf7d13925df27fa
           mkdir build
           cd build
           cmake -GNinja ..
@@ -75,22 +75,14 @@ jobs:
             
       - name: brotli
         run: |
-          git clone https://github.com/google/ngx_brotli.git
-          cd ngx_brotli
-          git checkout .
-          git pull
-          git submodule update --init --recursive
-          # git submodule update --remote
-          # cd ..
-          cd deps
-          rm -rf brotli
-          #git clone https://github.com/google/brotli.git
-          git clone -b brotli-fix-1 https://github.com/rosebe/brotli.git
-          cd brotli
-          # Commits on Jul 28, 2023
-          #git reset --hard 0300be36ba019c55d2edc48353270fa18008d49c
-          cd ../../..
-          
+          git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli
+          cd ngx_brotli/deps/brotli
+          mkdir out && cd out
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_CXX_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_INSTALL_PREFIX=./installed ..
+          cmake --build . --config Release --target brotlienc
+          cd ../../../..
+            
+            
       - name: zlib-cf
         run: |
           git clone -b gcc.amd64  https://github.com/cloudflare/zlib.git zlib-cf
@@ -108,24 +100,26 @@ jobs:
       
       - name: pcre2
         run: |
-          git clone https://github.com/PhilipHazel/pcre2.git 
+          git clone https://github.com/PCRE2Project/pcre2.git 
           cd pcre2
           git checkout .
           git pull
           ./autogen.sh
           cd ..
-      - name: Set up GCC
-        uses: egor-tensin/setup-gcc@v1.3
-        with:
-         version: 12
-         platform: x64
+      
+      #- name: Set up GCC
+        #uses: egor-tensin/setup-gcc@v1.3
+        #with:
+         #version: 12
+         #platform: x64
 
                     
       - name: hg nginx-quic build
         run: |
           sudo apt-get -y install subversion-tools
           # hg clone -b quic https://hg.nginx.org/nginx-quic
-          hg clone -b default https://hg.nginx.org/nginx-quic
+          #hg clone -b default https://hg.nginx.org/nginx-quic
+          git clone https://github.com/nginx/nginx.git
           
           # wget https://hg.nginx.org/nginx-quic/archive/tip.tar.gz
           # tar xzvf tip.tar.gz
@@ -134,7 +128,7 @@ jobs:
           # mv ./nginx-quic/auto/options ./nginx-quic/auto/options-backup
           # cp ./options-patch ./nginx-quic/auto/options
           
-          cd nginx-quic
+          cd nginx
           wget https://raw.githubusercontent.com/rosebe/patch/master/Enable_BoringSSL_OCSP.patch
           patch -p1 < Enable_BoringSSL_OCSP.patch
           
@@ -188,7 +182,7 @@ jobs:
             --with-stream_ssl_module \
             --with-stream_ssl_preread_module \
             --add-module=../ngx_brotli \
-            --with-pcre=../pcre2 --with-pcre-jit \
+            --with-pcre=../pcre2 \
             --with-zlib=../zlib-cf \
             --with-http_v3_module \
             --with-cc-opt='-I../boringssl/include -static -static-libgcc' \
@@ -196,10 +190,10 @@ jobs:
          
           make -j$(nproc --all)
           
-      - uses: actions/upload-artifact@v4.4.0
+      - uses: actions/upload-artifact@v4.4.3
         with:
           name: nginx-quic.Enable_BoringSSL_OCSP
-          path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
+          path: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
       
         # Setting an environment variable
         # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
@@ -207,9 +201,9 @@ jobs:
         id: step_one
         shell: bash
         run: |
-          echo "ASSET_NAME=nginx-quic-static v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}') Enable_BoringSSL_OCSP build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
-          echo "TAG_NAME=v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')" >> $GITHUB_ENV
-          echo "RELEASE_NAME=nginx-quic" v$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')>> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') Enable_OpenSSL and support ngx_http_geoip2_module build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=nginx-quic" v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')>> $GITHUB_ENV
           
           echo "TAG_NAME: "
           echo "${{ env.TAG_NAME }}"
@@ -267,8 +261,6 @@ jobs:
           echo "GITHUB_ENV 2: ${GITHUB_ENV} "
           
           echo "$(tree -d)"
-          echo "$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags)"
-          echo "$(cat /home/runner/work/nginx-quic/nginx-quic/nginx-quic/.hgtags | tail -n 1 | awk '{print $2}' | awk -F- '{print $2}')"
           
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
@@ -278,7 +270,7 @@ jobs:
           tag: ${{ env.TAG_NAME }}
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
-          file: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
+          file: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
           body: "Happy play "
           overwrite: true
           file_glob: false	  
