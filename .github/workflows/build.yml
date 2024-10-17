@@ -194,7 +194,7 @@ jobs:
       - uses: actions/upload-artifact@v4.4.3
         with:
           name: nginx-quic.Openssl
-          path: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
+          path: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
       
         # Setting an environment variable
         # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
@@ -271,7 +271,7 @@ jobs:
           tag: ${{ env.TAG_NAME }}
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
-          file: /home/runner/work/nginx-quic/nginx-quic/nginx-quic/objs/nginx
+          file: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
           body: "Happy play "
           overwrite: true
           file_glob: false
