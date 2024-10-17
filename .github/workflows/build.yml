@@ -202,9 +202,9 @@ jobs:
         id: step_one
         shell: bash
         run: |
-          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-patch/nginx-patch/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') Enable_OpenSSL and support ngx_http_geoip2_module build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
-          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-patch/nginx-patch/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
-          echo "RELEASE_NAME=nginx-quic" v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-patch/nginx-patch/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')>> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') Enable_OpenSSL and support ngx_http_geoip2_module build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=nginx-quic" v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')>> $GITHUB_ENV
           
           echo "TAG_NAME: "
           echo "${{ env.TAG_NAME }}"
