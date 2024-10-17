@@ -129,11 +129,11 @@ jobs:
           # cp ./options-patch ./nginx-quic/auto/options
           
           cd nginx
-          wget https://raw.githubusercontent.com/rosebe/patch/master/Enable_BoringSSL_OCSP.patch
-          patch -p1 < Enable_BoringSSL_OCSP.patch
+          #wget https://raw.githubusercontent.com/rosebe/patch/master/Enable_BoringSSL_OCSP.patch
+          #patch -p1 < Enable_BoringSSL_OCSP.patch
           
-          cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
-          patch -p1 < nginx_dynamic_tls_records.patch
+          #cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
+          #patch -p1 < nginx_dynamic_tls_records.patch
           
           #cp ../nginx.patch ./nginx.patch
           #patch -p1 < nginx.patch
