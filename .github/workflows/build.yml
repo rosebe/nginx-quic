@@ -103,10 +103,10 @@ jobs:
       
       - name: pcre2
         run: |
-          git clone https://github.com/PCRE2Project/pcre2.git
+          git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
           cd pcre2
-          git checkout .
-          git pull
+          #git checkout .
+          #git pull
           ./autogen.sh
           cd ..
 
@@ -181,6 +181,7 @@ jobs:
             --with-stream_ssl_preread_module \
             --add-module=../ngx_brotli \
             --with-pcre=../pcre2 \
+            --with-pcre-jit \
             --with-zlib=../zlib-cf \
             --with-http_v3_module \
             --add-module=../ngx_http_geoip2_module \
