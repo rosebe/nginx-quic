@@ -187,7 +187,7 @@ jobs:
             --add-module=../ngx_http_geoip2_module \
             --with-openssl=../openssl  \
             --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
-            --build=" Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
+            --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
             --with-cc-opt='-static -static-libgcc' \
             --with-ld-opt='-static' 
          
