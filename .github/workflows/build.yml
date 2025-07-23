@@ -267,7 +267,7 @@ jobs:
           
       - name: Upload binaries to release
         #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
-        uses: svenstaro/upload-release-action@2.10.0
+        uses: svenstaro/upload-release-action@2.11.2
         #if: github.event_name == 'release'
         with:
           repo_token: ${{ github.token }}          
