@@ -28,9 +28,9 @@ records again).
 
 
 diff --color -uNr a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.c
---- a/src/event/ngx_event_openssl.c	2025-04-16 20:01:11.000000000 +0800
-+++ b/src/event/ngx_event_openssl.c	2025-04-17 02:43:15.616511714 +0800
-@@ -1620,6 +1620,7 @@
+--- a/src/event/ngx_event_openssl.c	2025-08-19 13:59:31.878749000 +0800
++++ b/src/event/ngx_event_openssl.c	2025-08-19 14:01:52.342749000 +0800
+@@ -1657,6 +1657,7 @@
  
      sc->buffer = ((flags & NGX_SSL_BUFFER) != 0);
      sc->buffer_size = ssl->buffer_size;
@@ -38,7 +38,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.
  
      sc->session_ctx = ssl->ctx;
  
-@@ -2591,6 +2592,41 @@
+@@ -2628,6 +2629,41 @@
  
      for ( ;; ) {
  
@@ -80,7 +80,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.
          while (in && buf->last < buf->end && send < limit) {
              if (in->buf->last_buf || in->buf->flush) {
                  flush = 1;
-@@ -2730,6 +2766,9 @@
+@@ -2767,6 +2803,9 @@
  
      if (n > 0) {
  
@@ -91,9 +91,9 @@ diff --color -uNr a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.
  
              c->read->handler = c->ssl->saved_read_handler;
 diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.h
---- a/src/event/ngx_event_openssl.h	2025-04-16 20:01:11.000000000 +0800
-+++ b/src/event/ngx_event_openssl.h	2025-04-17 02:44:10.578945187 +0800
-@@ -86,6 +86,14 @@
+--- a/src/event/ngx_event_openssl.h	2025-08-19 13:59:31.878749000 +0800
++++ b/src/event/ngx_event_openssl.h	2025-08-19 14:01:52.343749000 +0800
+@@ -104,6 +104,14 @@
  typedef struct ngx_ssl_ocsp_s   ngx_ssl_ocsp_t;
  
  
@@ -108,7 +108,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.
  struct ngx_ssl_s {
      SSL_CTX                    *ctx;
      ngx_log_t                  *log;
-@@ -95,6 +103,8 @@
+@@ -113,6 +121,8 @@
  
      ngx_rbtree_t                staple_rbtree;
      ngx_rbtree_node_t           staple_sentinel;
@@ -117,7 +117,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.
  };
  
  
-@@ -133,6 +143,10 @@
+@@ -151,6 +161,10 @@
      unsigned                    in_ocsp:1;
      unsigned                    early_preread:1;
      unsigned                    write_blocked:1;
@@ -128,7 +128,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.
  };
  
  
-@@ -142,7 +156,7 @@
+@@ -160,7 +174,7 @@
  #define NGX_SSL_DFLT_BUILTIN_SCACHE  -5
  
  
@@ -138,9 +138,9 @@ diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.
  typedef struct ngx_ssl_sess_id_s  ngx_ssl_sess_id_t;
  
 diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ngx_http_ssl_module.c
---- a/src/http/modules/ngx_http_ssl_module.c	2025-04-16 20:01:11.000000000 +0800
-+++ b/src/http/modules/ngx_http_ssl_module.c	2025-04-17 02:43:15.618511766 +0800
-@@ -299,6 +299,41 @@
+--- a/src/http/modules/ngx_http_ssl_module.c	2025-08-19 13:59:31.901749000 +0800
++++ b/src/http/modules/ngx_http_ssl_module.c	2025-08-19 14:01:52.344749000 +0800
+@@ -306,6 +306,41 @@
        offsetof(ngx_http_ssl_srv_conf_t, reject_handshake),
        NULL },
  
@@ -182,7 +182,7 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ng
        ngx_null_command
  };
  
-@@ -639,6 +674,11 @@
+@@ -647,6 +682,11 @@
      sscf->ocsp_cache_zone = NGX_CONF_UNSET_PTR;
      sscf->stapling = NGX_CONF_UNSET;
      sscf->stapling_verify = NGX_CONF_UNSET;
@@ -194,7 +194,7 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ng
  
      return sscf;
  }
-@@ -705,6 +745,20 @@
+@@ -716,6 +756,20 @@
      ngx_conf_merge_str_value(conf->stapling_responder,
                           prev->stapling_responder, "");
  
@@ -215,7 +215,7 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ng
      conf->ssl.log = cf->log;
  
      if (conf->certificates) {
-@@ -905,6 +959,28 @@
+@@ -923,6 +977,28 @@
          return NGX_CONF_ERROR;
      }
  
@@ -245,9 +245,9 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ng
  }
  
 diff --color -uNr a/src/http/modules/ngx_http_ssl_module.h b/src/http/modules/ngx_http_ssl_module.h
---- a/src/http/modules/ngx_http_ssl_module.h	2025-04-16 20:01:11.000000000 +0800
-+++ b/src/http/modules/ngx_http_ssl_module.h	2025-04-17 02:43:15.618511766 +0800
-@@ -64,6 +64,12 @@
+--- a/src/http/modules/ngx_http_ssl_module.h	2025-08-19 13:59:31.902749000 +0800
++++ b/src/http/modules/ngx_http_ssl_module.h	2025-08-19 14:01:52.345749000 +0800
+@@ -65,6 +65,12 @@
      ngx_flag_t                      stapling_verify;
      ngx_str_t                       stapling_file;
      ngx_str_t                       stapling_responder;
@@ -258,4 +258,5 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.h b/src/http/modules/ng
 +    size_t                          dyn_rec_size_hi;
 +    ngx_uint_t                      dyn_rec_threshold;
  } ngx_http_ssl_srv_conf_t;
+ 
  
