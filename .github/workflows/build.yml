@@ -126,9 +126,11 @@ jobs:
           # mv $(ls -l | grep nginx-quic | awk '{print $9}') nginx-quic
            
           cd nginx
+
+          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
           
-          cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
-          patch -p1 < nginx_dynamic_tls_records.patch
+          #cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
+          #patch -p1 < nginx_dynamic_tls_records.patch
           
           #cp ../nginx.patch ./nginx.patch
           #patch -p1 < nginx.patch
