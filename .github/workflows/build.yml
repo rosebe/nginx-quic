@@ -131,8 +131,10 @@ jobs:
            
           cd nginx
           
-          cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
-          patch -p1 < nginx_dynamic_tls_records.patch
+          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
+          
+          #cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
+          #patch -p1 < nginx_dynamic_tls_records.patch
           
           #cp ../nginx.patch ./nginx.patch
           #patch -p1 < nginx.patch
