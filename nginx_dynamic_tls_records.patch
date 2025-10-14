@@ -26,11 +26,11 @@ In case the connection idles for a given amount of time (1s,
 ssl_dyn_rec_timeout), the process repeats itself (i.e. begin sending small
 records again).
 
-
 diff --color -uNr a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.c
---- a/src/event/ngx_event_openssl.c	2025-04-16 20:01:11.000000000 +0800
-+++ b/src/event/ngx_event_openssl.c	2025-04-17 02:43:15.616511714 +0800
-@@ -1620,6 +1620,7 @@
+index b1ae2955d..e3c0d5d89 100644
+--- a/src/event/ngx_event_openssl.c
++++ b/src/event/ngx_event_openssl.c
+@@ -1996,6 +1996,7 @@ ngx_ssl_create_connection(ngx_ssl_t *ssl, ngx_connection_t *c, ngx_uint_t flags)
  
      sc->buffer = ((flags & NGX_SSL_BUFFER) != 0);
      sc->buffer_size = ssl->buffer_size;
@@ -38,7 +38,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.
  
      sc->session_ctx = ssl->ctx;
  
-@@ -2591,6 +2592,41 @@
+@@ -2967,6 +2968,41 @@ ngx_ssl_send_chain(ngx_connection_t *c, ngx_chain_t *in, off_t limit)
  
      for ( ;; ) {
  
@@ -80,7 +80,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.
          while (in && buf->last < buf->end && send < limit) {
              if (in->buf->last_buf || in->buf->flush) {
                  flush = 1;
-@@ -2730,6 +2766,9 @@
+@@ -3106,6 +3142,9 @@ ngx_ssl_write(ngx_connection_t *c, u_char *data, size_t size)
  
      if (n > 0) {
  
@@ -91,9 +91,10 @@ diff --color -uNr a/src/event/ngx_event_openssl.c b/src/event/ngx_event_openssl.
  
              c->read->handler = c->ssl->saved_read_handler;
 diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.h
---- a/src/event/ngx_event_openssl.h	2025-04-16 20:01:11.000000000 +0800
-+++ b/src/event/ngx_event_openssl.h	2025-04-17 02:44:10.578945187 +0800
-@@ -86,6 +86,14 @@
+index 79f96c160..354e41086 100644
+--- a/src/event/ngx_event_openssl.h
++++ b/src/event/ngx_event_openssl.h
+@@ -96,6 +96,14 @@
  typedef struct ngx_ssl_ocsp_s   ngx_ssl_ocsp_t;
  
  
@@ -108,7 +109,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.
  struct ngx_ssl_s {
      SSL_CTX                    *ctx;
      ngx_log_t                  *log;
-@@ -95,6 +103,8 @@
+@@ -105,6 +113,8 @@ struct ngx_ssl_s {
  
      ngx_rbtree_t                staple_rbtree;
      ngx_rbtree_node_t           staple_sentinel;
@@ -117,7 +118,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.
  };
  
  
-@@ -133,6 +143,10 @@
+@@ -144,6 +154,10 @@ struct ngx_ssl_connection_s {
      unsigned                    early_preread:1;
      unsigned                    write_blocked:1;
      unsigned                    sni_accepted:1;
@@ -128,7 +129,7 @@ diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.
  };
  
  
-@@ -142,7 +156,7 @@
+@@ -153,7 +167,7 @@ struct ngx_ssl_connection_s {
  #define NGX_SSL_DFLT_BUILTIN_SCACHE  -5
  
  
@@ -138,9 +139,10 @@ diff --color -uNr a/src/event/ngx_event_openssl.h b/src/event/ngx_event_openssl.
  typedef struct ngx_ssl_sess_id_s  ngx_ssl_sess_id_t;
  
 diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ngx_http_ssl_module.c
---- a/src/http/modules/ngx_http_ssl_module.c	2025-04-16 20:01:11.000000000 +0800
-+++ b/src/http/modules/ngx_http_ssl_module.c	2025-04-17 02:43:15.618511766 +0800
-@@ -299,6 +299,41 @@
+index 7a6f49c3f..9519675bc 100644
+--- a/src/http/modules/ngx_http_ssl_module.c
++++ b/src/http/modules/ngx_http_ssl_module.c
+@@ -306,6 +306,41 @@ static ngx_command_t  ngx_http_ssl_commands[] = {
        offsetof(ngx_http_ssl_srv_conf_t, reject_handshake),
        NULL },
  
@@ -182,7 +184,7 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ng
        ngx_null_command
  };
  
-@@ -639,6 +674,11 @@
+@@ -647,6 +682,11 @@ ngx_http_ssl_create_srv_conf(ngx_conf_t *cf)
      sscf->ocsp_cache_zone = NGX_CONF_UNSET_PTR;
      sscf->stapling = NGX_CONF_UNSET;
      sscf->stapling_verify = NGX_CONF_UNSET;
@@ -194,7 +196,7 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ng
  
      return sscf;
  }
-@@ -705,6 +745,20 @@
+@@ -716,6 +756,20 @@ ngx_http_ssl_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
      ngx_conf_merge_str_value(conf->stapling_responder,
                           prev->stapling_responder, "");
  
@@ -215,7 +217,7 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ng
      conf->ssl.log = cf->log;
  
      if (conf->certificates) {
-@@ -905,6 +959,28 @@
+@@ -933,6 +987,28 @@ ngx_http_ssl_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
          return NGX_CONF_ERROR;
      }
  
@@ -245,9 +247,10 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.c b/src/http/modules/ng
  }
  
 diff --color -uNr a/src/http/modules/ngx_http_ssl_module.h b/src/http/modules/ngx_http_ssl_module.h
---- a/src/http/modules/ngx_http_ssl_module.h	2025-04-16 20:01:11.000000000 +0800
-+++ b/src/http/modules/ngx_http_ssl_module.h	2025-04-17 02:43:15.618511766 +0800
-@@ -64,6 +64,12 @@
+index 9b26529fa..e50bdc957 100644
+--- a/src/http/modules/ngx_http_ssl_module.h
++++ b/src/http/modules/ngx_http_ssl_module.h
+@@ -65,6 +65,12 @@ typedef struct {
      ngx_flag_t                      stapling_verify;
      ngx_str_t                       stapling_file;
      ngx_str_t                       stapling_responder;
@@ -258,4 +261,5 @@ diff --color -uNr a/src/http/modules/ngx_http_ssl_module.h b/src/http/modules/ng
 +    size_t                          dyn_rec_size_hi;
 +    ngx_uint_t                      dyn_rec_threshold;
  } ngx_http_ssl_srv_conf_t;
+ 
  
