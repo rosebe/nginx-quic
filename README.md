@@ -1,7 +1,10 @@
 ## nginx-quic
 [![build nginx_quic_openssl_geoip2](https://github.com/rosebe/nginx-quic/actions/workflows/build_openssl_geoip2.yml/badge.svg)](https://github.com/rosebe/nginx-quic/actions/workflows/build_openssl_geoip2.yml)
 [![build nginx_quic_openssl](https://github.com/rosebe/nginx-quic/actions/workflows/build_openssl.yml/badge.svg)](https://github.com/rosebe/nginx-quic/actions/workflows/build_openssl.yml)
-使用GitHub Action编译nginx-quic，基于最新源码（https://hg.nginx.org/nginx-quic) (https://github.com/nginx)
+
+使用GitHub Action编译nginx-quic，基于最新源码 :
+（https://hg.nginx.org/nginx-quic)
+(https://github.com/nginx)
 
 ##### [测试你的浏览器对quic的支持](https://quic.nginx.org/quic.html)
 ##### [测试服务器对HTTP/3的支持](https://http3check.net)
