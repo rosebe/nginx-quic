@@ -1,0 +1,279 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build nginx-quic with Openssl
+
+# Controls when the action will run. 
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  #push:
+    #branches:
+      #- main
+      #- b*
+      #- E*
+  #pull_request:
+    #branches:
+      #- main
+      #- b*
+      #- E* 
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  release:
+    types: [published]
+    
+# Set time zone
+env:
+  TZ: Asia/Shanghai
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    #runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest     
+    
+    if: github.event.repository.owner.id == github.event.sender.id
+    
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v5.0.0
+                              
+      # Runs a set of commands using the runners shell
+      - name: depend
+        run: |
+          sudo apt-get update
+          sudo apt-get upgrade
+          sudo apt-get install build-essential ca-certificates \
+                               zlib1g-dev libpcre3 libpcre3-dev libssl-dev \
+                               git cmake ninja-build gnupg2 lsb-release libunwind-dev \
+                               tar unzip  wget curl tree perl-base 
+                                                                        
+          
+      #- name: Setup Go environment
+      #  uses: actions/setup-go@v4.0.1
+      #  with:
+      #   go-version: ^1.20
+      #   check-latest: true
+  
+      - name: openssl
+        run: |
+          #git clone -b openssl-3.1.0+quic https://github.com/quictls/openssl.git
+          #git clone -b openssl-3.1.0+quic+locks https://github.com/quictls/openssl.git
+          git clone https://github.com/openssl/openssl.git
+          cd openssl
+          git checkout .
+          git pull
+          git submodule update --init --recursive
+          #mkdir build
+          #cd build
+          #../Configure
+          #sudo make -j$(nproc --all)
+          #sudo make install
+          #sudo ldconfig /usr/local/lib64/
+          #openssl version -d
+          cd ..
+                      
+      - name: brotli
+        run: |
+          git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli
+          cd ngx_brotli/deps/brotli
+          mkdir out && cd out
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_CXX_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_INSTALL_PREFIX=./installed ..
+          cmake --build . --config Release --target brotlienc
+          cd ../../../..
+                 
+          
+      - name: zlib-cf
+        run: |
+          git clone -b gcc.amd64  https://github.com/cloudflare/zlib.git zlib-cf
+          cd zlib-cf
+          make -f Makefile.in distclean
+          git checkout .
+          git pull
+          git submodule update --init --recursive
+          cd ..
+          
+      #- name: pcre
+        #run: |
+          #curl -L -o pcre-8.45.tar.gz https://sourceforge.net/projects/pcre/files/pcre/8.45/pcre-8.45.tar.gz/download
+          #tar xzvf pcre-8.45.tar.gz
+      
+      - name: pcre2
+        run: |
+          git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git 
+          cd pcre2
+          #git checkout .
+          #git pull
+          ./autogen.sh
+          cd ..
+
+      #- name: Set up GCC
+        #uses: egor-tensin/setup-gcc@v1.3
+        #with:
+         #version: 12
+         #platform: x64
+
+                    
+      - name: build nginx-quic
+        run: |
+          sudo apt-get -y install subversion-tools
+          # hg clone -b quic https://hg.nginx.org/nginx-quic
+          git clone https://github.com/nginx/nginx.git
+          
+          # wget https://hg.nginx.org/nginx-quic/archive/tip.tar.gz
+          # tar xzvf tip.tar.gz
+          # mv $(ls -l | grep nginx-quic | awk '{print $9}') nginx-quic
+           
+          cd nginx
+          echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
+
+          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
+          
+          #cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
+          #patch -p1 < nginx_dynamic_tls_records.patch
+          
+          #cp ../nginx.patch ./nginx.patch
+          #patch -p1 < nginx.patch
+          
+          #cp ../option.patch ./option.patch
+          #patch -p1 < option.patch
+                   
+          ./auto/configure \
+            --prefix=/etc/nginx \
+            --sbin-path=/usr/sbin/nginx \
+            --modules-path=/usr/lib64/nginx/modules \
+            --conf-path=/etc/nginx/nginx.conf \
+            --error-log-path=/var/log/nginx/error.log \
+            --http-log-path=/var/log/nginx/access.log \
+            --pid-path=/var/run/nginx.pid \
+            --lock-path=/var/run/nginx.lock \
+            --http-client-body-temp-path=/var/cache/nginx/client_temp \
+            --http-proxy-temp-path=/var/cache/nginx/proxy_temp \
+            --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
+            --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp \
+            --http-scgi-temp-path=/var/cache/nginx/scgi_temp \
+            --user=nginx \
+            --group=nginx \
+            --with-compat \
+            --with-file-aio \
+            --with-threads \
+            --with-http_addition_module \
+            --with-http_auth_request_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_mp4_module \
+            --with-http_random_index_module \
+            --with-http_realip_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_ssl_module \
+            --with-http_stub_status_module \
+            --with-http_sub_module \
+            --with-http_v2_module \
+            --with-mail \
+            --with-mail_ssl_module \
+            --with-stream \
+            --with-stream_realip_module \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --add-module=../ngx_brotli \
+            --with-pcre=../pcre2 \
+            --with-pcre-jit \
+            --with-zlib=../zlib-cf \
+            --with-http_v3_module \
+            --with-openssl=../openssl  \
+            --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
+            --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
+            --with-cc-opt='-static -static-libgcc' \
+            --with-ld-opt='-static' 
+         
+          sudo make -j$(nproc --all)
+          
+      - uses: actions/upload-artifact@v4.4.3
+        with:
+          name: nginx-quic.Openssl
+          path: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+      
+        # Setting an environment variable
+        # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
+      - name: Set variables
+        id: step_one
+        shell: bash
+        run: |
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} Enable_OpenSSL build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=nginx-quic" v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')>> $GITHUB_ENV
+          
+          echo "TAG_NAME: "
+          echo "${{ env.TAG_NAME }}"
+          echo ""
+          echo "RELEASE_NAME: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo ""
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}, RELEASE_NAME: $(GITHUB_RELEASE_NAME) , TAG_NAME: ${GITHUB_TAG_NAME}"
+          echo ""
+          echo "RELEASE_NAME: ${{ env.RELEASE_NAME }} "
+          echo "TAG_NAME: ${{ env.TAG_NAME }} "
+          echo ""
+          echo "TAG_NAME 1: ${{ env.TAG_NAME }} "
+          echo "TAG_NAME 2: $env.TAG_NAME "
+          echo "TAG_NAME 3: $TAG_NAME "
+          echo "TAG_NAME 4:" $TAG_NAME
+          echo "TAG_NAME 5: ""${{ env.TAG_NAME }} "
+          echo ""
+          echo "RELEASE_NAME 5: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo ""
+          echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
+          echo "GITHUB_ENV 1: "$GITHUB_ENV
+          echo "GITHUB_ENV 2: ${GITHUB_ENV} "       
+              
+      - name: Use variables
+        id: step_two
+        shell: bash
+        run: |
+          echo "TAG_NAME: "
+          echo "${{ env.TAG_NAME }}"
+          echo ""
+          echo "RELEASE_NAME: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo ""
+          echo "ASSET_NAME: "
+          echo "${{ env.ASSET_NAME }}" 
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}, RELEASE_NAME: $(GITHUB_RELEASE_NAME) , TAG_NAME: ${GITHUB_TAG_NAME}"
+          echo ""
+          echo "RELEASE_NAME: ${{ env.RELEASE_NAME }} "
+          echo "TAG_NAME: ${{ env.TAG_NAME }} "
+          echo "ASSET_NAME: ${{ env.ASSET_NAME }} "
+          echo ""
+          echo "TAG_NAME 1: ${{ env.TAG_NAME }} "
+          echo "TAG_NAME 2: $env.TAG_NAME "
+          echo "TAG_NAME 3: $TAG_NAME "
+          echo "TAG_NAME 4:" $TAG_NAME
+          echo "TAG_NAME 5: ""${{ env.TAG_NAME }} "
+          echo ""
+          echo "RELEASE_NAME 5: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
+          echo ""
+          echo "GITHUB_ENV 1: "$GITHUB_ENV
+          echo "GITHUB_ENV 2: ${GITHUB_ENV} "
+          
+          echo "$(tree -d)"
+          
+      - name: Upload binaries to release
+        #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
+        uses: svenstaro/upload-release-action@2.11.2
+        #if: github.event_name == 'release'
+        with:
+          repo_token: ${{ github.token }}          
+          tag: ${{ env.TAG_NAME }}
+          release_name: ${{ env.RELEASE_NAME }}
+          asset_name: ${{ env.ASSET_NAME }}
+          file: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          body: "Happy play "
+          overwrite: true
+          file_glob: false
