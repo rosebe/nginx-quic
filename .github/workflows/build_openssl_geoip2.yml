@@ -187,7 +187,7 @@ jobs:
           make -j$(nproc)
           cd ..
 
-        - name: Stage 2 - Full Scenario Training (PGO)
+      - name: Stage 2 - Full Scenario Training (PGO)
         run: |
           # 1. [防损协议：地址分段定义]
           GHZ_ROOT="github.com"
