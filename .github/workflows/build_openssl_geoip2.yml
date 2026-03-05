@@ -180,38 +180,48 @@ jobs:
             --with-openssl=../openssl  \
             --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
-            --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-generate=/tmp/pgo-data' \
+            --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
             --with-ld-opt='-static -flto=auto -fprofile-generate=/tmp/pgo-data' \
             
           
           make -j$(nproc)
           cd ..
 
-      # --- 第二阶段：全场景复合训练 (PGO Training) ---
-      - name: Stage 2 - Full Scenario Training
+      # --- 第二阶段：全场景复合训练 (含 GeoIP2 深度优化) ---
+      - name: Stage 2 - Full Scenario Training (PGO)
         run: |
-          # [防损协议：地址分段定义]
+          # 1. [防损协议：地址分段定义]
           GHZ_ROOT="github.com"
           GHZ_PATH="/bojand/ghz/cmd/ghz@latest"
-          GHZ_CMD="${GHZ_ROOT}${GHZ_PATH}"
-          
           PROTO_ROOT="https://raw.githubusercontent.com"
           PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld"
           PROTO_FILE="/helloworld.proto"
-          PROTO_URL="${PROTO_ROOT}${PROTO_PATH}${PROTO_FILE}"
+          
+          GEO_ROOT="https://github.com"
+          GEO_PATH="/P3TERX/GeoLite.mmdb/releases/download/2026.03.04"
 
-          # 安装工具与下载 Proto
-          sudo apt-get install -y wrk openssl
-          GO111MODULE=on go install "$GHZ_CMD"
+          # 2. 【工具安装与数据整备】
+          sudo apt-get update && sudo apt-get install -y wrk openssl brotli
+          GO111MODULE=on go install "${GHZ_ROOT}${GHZ_PATH}"
           export PATH=$PATH:$(go env GOPATH)/bin
-          mkdir -p /tmp/pgo-run/proto
-          curl -sSL "$PROTO_URL" -o /tmp/pgo-run/proto/helloworld.proto
+          
+          mkdir -p /tmp/pgo-run/proto /tmp/pgo-run/geoip /tmp/pgo-run/logs
 
-          # 生成训练配置 (含 Stream/WS/gRPC)
+          # 下载 Proto 与 Brotli 版 GeoIP 数据库 (加速下载)
+          curl -sSL "${PROTO_ROOT}${PROTO_PATH}${PROTO_FILE}" -o /tmp/pgo-run/proto/helloworld.proto
+          curl -L -sSL "${GEO_ROOT}${GEO_PATH}/GeoLite2-Country.mmdb.br" | brotli -d > /tmp/pgo-run/geoip/Country.mmdb
+          curl -L -sSL "${GEO_ROOT}${GEO_PATH}/GeoLite2-City.mmdb.br" | brotli -d > /tmp/pgo-run/geoip/City.mmdb
+
+          # 3. 【生成深度训练配置】
           cat <<EOF > /tmp/pgo-run/pgo.conf
           worker_processes auto;
           daemon off;
+          # 权限加固：重定向 PID 和错误日志到用户目录
+          error_log /tmp/pgo-run/logs/error.log;
+          pid /tmp/pgo-run/nginx.pid;
+
           events { worker_connections 2048; }
+
           stream {
               map \$ssl_preread_server_name \$backend {
                   example.com  127.0.0.1:8081; 
@@ -219,10 +229,20 @@ jobs:
               }
               server { listen 8443; proxy_pass \$backend; ssl_preread on; }
           }
+
           http {
+              # GeoIP2 查询路径优化 (关键！)
+              geoip2 /tmp/pgo-run/geoip/Country.mmdb { \$geoip2_data_country_code country iso_code; }
+              geoip2 /tmp/pgo-run/geoip/City.mmdb { \$geoip2_data_city_name city names en; }
+
               map \$http_upgrade \$connection_upgrade { default upgrade; '' close; }
+              
               server {
                   listen 8081;
+                  # 强制在响应头中触发 GeoIP 查询代码
+                  add_header X-IP-Country \$geoip2_data_country_code;
+                  add_header X-IP-City \$geoip2_data_city_name;
+
                   location /ws {
                       proxy_pass http://127.0.0.1:9000;
                       proxy_http_version 1.1;
@@ -230,26 +250,38 @@ jobs:
                       proxy_set_header Connection \$connection_upgrade;
                   }
                   location /grpc { grpc_pass grpc://127.0.0.1:50051; }
-                  location / { return 200 "PGO training content"; }
+                  location / { return 200 "PGO training with GeoIP: \$geoip2_data_country_code"; }
               }
           }
           EOF
 
-          # 启动并压测
-          ./nginx/objs/nginx -c /tmp/pgo-run/pgo.conf &
+          # 4. 【插桩启动】
+          # 注意：Stage 1 必须使用 -march=x86-64-v3 编译，否则此处会 Illegal Instruction
+          ./nginx/objs/nginx -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
           NGINX_PID=$!
           sleep 5
+          
+          # 验证存活
+          if ! kill -0 $NGINX_PID; then echo "Nginx 启动失败，日志详情："; cat /tmp/pgo-run/logs/error.log; exit 1; fi
 
-          echo ">> Training Reality/SNI..."
+          # 5. 【全场景压测训练】
+          echo ">> Training Step 1: Reality/SNI..."
           for i in {1..30}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com >/dev/null 2>&1; done
           
-          echo ">> Training WebSocket & gRPC..."
+          echo ">> Training Step 2: WebSocket & GeoIP Headers..."
           wrk -t4 -c100 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1
+          
+          echo ">> Training Step 3: gRPC (HTTP/2)..."
           ghz --insecure --proto=/tmp/pgo-run/proto/helloworld.proto --call=helloworld.Greeter.SayHello -n 1000 127.0.0.1:8081/grpc || true
           
-          # 优雅停止写出数据
+          echo ">> Training Step 4: High Load GeoIP Query..."
+          wrk -t8 -c200 -d10s http://127.0.0.1
+
+          # 6. 【数据写出】
           kill -QUIT $NGINX_PID
           sleep 5
+          echo "PGO Data (GCDA) 已成功生成并存储在 /tmp/pgo-data"
+
 
       # --- 第三阶段：最终极致编译 (Final Optimization) ---
       - name: Stage 3 - Final Build
