@@ -189,43 +189,53 @@ jobs:
 
       - name: Stage 2 - Full Scenario Training (PGO)
         run: |
-          # 1. [防损协议：地址分段定义]
-          GHZ_ROOT="github.com"
-          GHZ_PATH="/bojand/ghz/cmd/ghz@latest"
-          PROTO_ROOT="https://raw.githubusercontent.com"
-          PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld"
-          PROTO_FILE="/helloworld.proto"
+          # 1. [防损协议：地址分段定义 - 路径加固版]
+          G_ROOT="github.com"
+          G_PATH="/bojand/ghz/cmd/ghz@latest"
+          GHZ_CMD="${G_ROOT}${G_PATH}"
           
-          API_ROOT="https://api.github.com"
-          API_PATH="/repos/P3TERX/GeoLite.mmdb/releases/latest"
-          DL_ROOT="https://github.com"
-          DL_PATH="/P3TERX/GeoLite.mmdb/releases/download"
+          P_ROOT="https://raw.githubusercontent.com"
+          P_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
+          PROTO_URL="${P_ROOT}${P_PATH}"
+          
+          GEO_HOST="https://github.com"
+          GEO_USER="/P3TERX"
+          GEO_REPO="/GeoLite.mmdb"
+          GEO_BASE="${GEO_HOST}${GEO_USER}${GEO_REPO}"
+          
+          LATEST_RELEASE_URL="${GEO_BASE}/releases/latest"
+          DL_BASE="${GEO_BASE}/releases/download"
 
-          # 2. 【工具安装与数据整备】
+          # 2. 【工具安装与环境整备】
           sudo apt-get update && sudo apt-get install -y wrk openssl brotli
-          GO111MODULE=on go install "${GHZ_ROOT}${GHZ_PATH}"
+          GO111MODULE=on go install "$GHZ_CMD"
           export PATH=$PATH:$(go env GOPATH)/bin
           mkdir -p /tmp/pgo-run/proto /tmp/pgo-run/geoip /tmp/pgo-run/logs
 
-          # 动态获取最新 GeoIP Tag
-          LATEST_TAG=$(curl -sSL "${API_ROOT}${API_PATH}" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-          [ -z "$LATEST_TAG" ] && { echo "Tag 获取失败"; exit 1; }
+          # --- 自动获取 Tag ---
+          echo "正在追踪最新版本号..."
+          LATEST_TAG=$(curl -sSI "$LATEST_RELEASE_URL" | grep -i "^location:" | awk -F'/' '{print $NF}' | tr -d '\r' | xargs)
+          [ -z "$LATEST_TAG" ] && { echo "❌ 无法获取 Tag"; exit 1; }
+          echo "✅ 检测到最新版本: ${LATEST_TAG}"
 
-          # 下载函数
+          # --- 下载函数 ---
           download_geoip_br() {
-                local FILE_BASE=$1
-                local FULL_URL="${DL_ROOT}${DL_PATH}/${LATEST_TAG}/${FILE_BASE}.br"
-                curl -L -sSf "$FULL_URL" -o "/tmp/${FILE_BASE}.br" && \
-                brotli -d "/tmp/${FILE_BASE}.br" -o "/tmp/pgo-run/geoip/${FILE_BASE}"
-                echo "✅ ${FILE_BASE} 部署成功。"
+              local FILE_BASE=$1
+              local FULL_URL="${DL_BASE}/${LATEST_TAG}/${FILE_BASE}.br"
+              if curl -L -f -sSL "$FULL_URL" -o "/tmp/${FILE_BASE}.br"; then
+                  brotli -d "/tmp/${FILE_BASE}.br" -o "/tmp/pgo-run/geoip/${FILE_BASE}"
+                  [ -s "/tmp/pgo-run/geoip/${FILE_BASE}" ] && echo "✅ ${FILE_BASE} 成功。" || exit 1
+                  rm "/tmp/${FILE_BASE}.br"
+              else
+                  exit 1
+              fi
           }
 
-          # 下载依赖
-          curl -sSL "${PROTO_ROOT}${PROTO_PATH}${PROTO_FILE}" -o /tmp/pgo-run/proto/helloworld.proto
+          curl -sSL "$PROTO_URL" -o /tmp/pgo-run/proto/helloworld.proto
           download_geoip_br "GeoLite2-Country.mmdb"
           download_geoip_br "GeoLite2-City.mmdb"
-
-          # 3. 【生成深度训练配置】(保持您的配置不变，包含 \$ 符号)
+          
+          # 3. 【生成训练配置】(修正 GeoIP2 变量转义 \$)
           cat <<EOF > /tmp/pgo-run/pgo.conf
           worker_processes auto;
           daemon off;
@@ -240,8 +250,9 @@ jobs:
               server { listen 8443; proxy_pass \$backend; ssl_preread on; }
           }
           http {
-              geoip2 /tmp/pgo-run/geoip/Country.mmdb { \$geoip2_data_country_code country iso_code; }
-              geoip2 /tmp/pgo-run/geoip/City.mmdb { \$geoip2_data_city_name city names en; }
+              # 注意：此处必须使用 \$ 符号防止被 Shell 提前解析
+              geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { \$geoip2_data_country_code country iso_code; }
+              geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { \$geoip2_data_city_name city names en; }
               map \$http_upgrade \$connection_upgrade { default upgrade; '' close; }
               server {
                   listen 8081;
@@ -261,9 +272,9 @@ jobs:
 
           # 4. 【插桩启动】
           ./nginx/objs/nginx -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
-          NGINX_PID=$!
+          NGINX_PID=\$!
           sleep 5
-          kill -0 $NGINX_PID || { cat /tmp/pgo-run/logs/error.log; exit 1; }
+          kill -0 \$NGINX_PID || { cat /tmp/pgo-run/logs/error.log; exit 1; }
 
           
           # 5. 【全场景压测训练】修正说明：必须显式指定 :8081 端口
@@ -283,7 +294,7 @@ jobs:
           wrk -t4 -c100 -d5s http://127.0.0.1:8081
 
           # 6. 【数据写出】
-          kill -QUIT $NGINX_PID
+          kill -QUIT \$NGINX_PID
           sleep 5
 
 
