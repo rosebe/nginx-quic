@@ -174,135 +174,96 @@ jobs:
 
       - name: Stage 2 - Full Scenario Training (PGO)
         run: |
-          # 1. [防损协议：地址分段定义 - 路径加固版]
+          # 1. [基础环境与路径准备]
+          mkdir -p /tmp/pgo-run/proto /tmp/pgo-run/geoip /tmp/pgo-run/logs /tmp/pgo-run/client_body_temp /tmp/pgo-data
+          chmod -R 777 /tmp/pgo-run /tmp/pgo-data
+
+          # 2. [下载依赖资源]
           G_ROOT="github.com"
           G_PATH="/bojand/ghz/cmd/ghz@latest"
           GHZ_CMD="${G_ROOT}${G_PATH}"
-          
-          P_ROOT="https://raw.githubusercontent.com"
-          P_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
-          PROTO_URL="${P_ROOT}${P_PATH}"
-          
-          GEO_HOST="https://github.com"
-          GEO_USER="/P3TERX"
-          GEO_REPO="/GeoLite.mmdb"
-          GEO_BASE="${GEO_HOST}${GEO_USER}${GEO_REPO}"
-          
-          LATEST_RELEASE_URL="${GEO_BASE}/releases/latest"
-          DL_BASE="${GEO_BASE}/releases/download"
+          PROTO_URL="https://raw.githubusercontent.com"
+          GEO_BASE="https://github.com"
 
-          # 2. 【工具安装与环境整备】
           sudo apt-get update && sudo apt-get install -y wrk openssl brotli
           GO111MODULE=on go install "$GHZ_CMD"
           export PATH=$PATH:$(go env GOPATH)/bin
-          mkdir -p /tmp/pgo-run/proto /tmp/pgo-run/geoip /tmp/pgo-run/logs
 
-          # --- 自动获取 Tag ---
-          echo "正在追踪最新版本号..."
-          LATEST_TAG=$(curl -sSI "$LATEST_RELEASE_URL" | grep -i "^location:" | awk -F'/' '{print $NF}' | tr -d '\r' | xargs)
-          [ -z "$LATEST_TAG" ] && { echo "❌ 无法获取 Tag"; exit 1; }
-          echo "✅ 检测到最新版本: ${LATEST_TAG}"
-
-          # --- 下载函数 ---
-          download_geoip() {
-              local FILE_BASE=$1
-              local FULL_URL="${DL_BASE}/${LATEST_TAG}/${FILE_BASE}"
-              if curl -L -f -sSL "$FULL_URL" -o "/tmp/pgo-run/geoip/${FILE_BASE}"; then
-                  [ -s "/tmp/pgo-run/geoip/${FILE_BASE}" ] && echo "✅ ${FILE_BASE} 成功。" || exit 1
-              else
-                  exit 1
-              fi
-          }
-
+          echo "正在追踪 GeoIP 最新版本..."
+          LATEST_TAG=$(curl -sSI "${GEO_BASE}/releases/latest" | grep -i "^location:" | awk -F'/' '{print $NF}' | tr -d '\r' | xargs)
+          curl -L -sSL "${GEO_BASE}/releases/download/${LATEST_TAG}/GeoLite2-Country.mmdb" -o /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+          curl -L -sSL "${GEO_BASE}/releases/download/${LATEST_TAG}/GeoLite2-City.mmdb" -o /tmp/pgo-run/geoip/GeoLite2-City.mmdb
           curl -sSL "$PROTO_URL" -o /tmp/pgo-run/proto/helloworld.proto
-          download_geoip "GeoLite2-Country.mmdb"
-          download_geoip "GeoLite2-City.mmdb"
-          
-          # 3. 【生成训练配置】
-          # 这一行前面的空格必须去掉！
-          # 关键点：EOF 这一块相对于 run:| 必须有缩进，但 EOF 标志本身前后不能有空格
+
+          # 3. [生成训练配置]
+          # 注意：EOF 标记必须有缩进以符合 YAML，但 EOF 自身后面严禁有空格
           cat <<'EOF' > /tmp/pgo-run/pgo.conf
-worker_processes auto;
-daemon off;
-error_log /tmp/pgo-run/logs/error.log;
-pid /tmp/pgo-run/nginx.pid;
-events { worker_connections 2048; }
-stream {
-    map $ssl_preread_server_name $backend {
-        example.com  127.0.0.1:8081; 
-        default      127.0.0.1:8082; 
-    }
-    server { listen 8443; proxy_pass $backend; ssl_preread on; }
-}
-http {
-    # 强制重定向所有硬编码路径到 /tmp，防止权限报错
-    client_body_temp_path /tmp/pgo-run/client_body_temp;
-    proxy_temp_path       /tmp/pgo-run/proxy_temp;
-    fastcgi_temp_path     /tmp/pgo-run/fastcgi_temp;
-    uwsgi_temp_path       /tmp/pgo-run/uwsgi_temp;
-    scgi_temp_path        /tmp/pgo-run/scgi_temp;
+          worker_processes auto;
+          daemon off;
+          error_log /tmp/pgo-run/logs/error.log;
+          pid /tmp/pgo-run/nginx.pid;
+          events { worker_connections 2048; }
+          stream {
+              map $ssl_preread_server_name $backend {
+                  example.com  127.0.0.1:8081; 
+                  default      127.0.0.1:8082; 
+              }
+              server { listen 8443; proxy_pass $backend; ssl_preread on; }
+          }
+          http {
+              client_body_temp_path /tmp/pgo-run/client_body_temp;
+              proxy_temp_path       /tmp/pgo-run/proxy_temp;
+              fastcgi_temp_path     /tmp/pgo-run/fastcgi_temp;
+              uwsgi_temp_path       /tmp/pgo-run/uwsgi_temp;
+              scgi_temp_path        /tmp/pgo-run/scgi_temp;
+              geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { $geoip2_data_country_code country iso_code; }
+              geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { $geoip2_data_city_name city names en; }
+              map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+              server {
+                  listen 8081;
+                  add_header X-IP-Country $geoip2_data_country_code;
+                  add_header X-IP-City $geoip2_data_city_name;
+                  location /ws { return 200 "ws_ok"; }
+                  location /grpc { return 200 "grpc_ok"; }
+                  location / { return 200 "PGO training content"; }
+              }
+          }
+          EOF
 
-    geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { $geoip2_data_country_code country iso_code; }
-    geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { $geoip2_data_city_name city names en; }
-    map $http_upgrade $connection_upgrade { default upgrade; '' close; }
-    server {
-        listen 8081;
-        add_header X-IP-Country $geoip2_data_country_code;
-        add_header X-IP-City $geoip2_data_city_name;
-        location /ws { return 200 "ws_ok"; }
-        location /grpc { return 200 "grpc_ok"; }
-        location / { return 200 "PGO training content"; }
-    }
-}
-EOF
-          # ↑ 这一行 EOF 必须紧贴左侧边缘，不能有任何缩进！
-          # 确认 EOF 后面没有空格，且后续代码恢复正常缩进
+          # 4. [插桩启动与生存检查]
+          # 使用 -p 强制指定前缀，切断对 /usr/local/nginx 的依赖
+          $(pwd)/nginx/objs/nginx -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
+          NGINX_PID=$!
 
+          sleep 5
+          if ! kill -0 $NGINX_PID 2>/dev/null; then
+              echo "❌ Nginx 启动失败！诊断日志："
+              [ -f /tmp/pgo-run/logs/error.log ] && cat /tmp/pgo-run/logs/error.log
+              cat /tmp/pgo-run/logs/stdout.log
+              exit 1
+          fi
 
-
-          # 4. 【插桩启动】
-            mkdir -p /tmp/pgo-run/logs /tmp/pgo-run/client_body_temp /tmp/pgo-data
-            chmod -R 777 /tmp/pgo-run /tmp/pgo-data
-
-            # 使用 -p 参数强制指定 prefix
-            $(pwd)/nginx/objs/nginx -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
-            NGINX_PID=$!
-
-            sleep 5
-            # 如果进程不在了，打印所有日志并直接报错
-            if ! kill -0 $NGINX_PID 2>/dev/null; then
-                echo "❌ Nginx 启动后崩溃！"
-                echo "--- STDOUT ---"
-                cat /tmp/pgo-run/logs/stdout.log
-                echo "--- ERROR LOG ---"
-                [ -f /tmp/pgo-run/logs/error.log ] && cat /tmp/pgo-run/logs/error.log
-                exit 1
-            fi
-
-                      
-          # 5. 【全场景压测训练】修正说明：必须显式指定 :8081 端口
-          echo ">> Step 1: Reality/SNI..."
+          # 5. [全场景压测训练]
+          echo ">> Step 1: SNI/Stream..."
           for i in {1..20}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com >/dev/null 2>&1; done
           
           echo ">> Step 2: WebSocket & GeoIP..."
-          # 修正：添加 :8081/ws
-          wrk -t2 -c50 -d5s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081/ws
+          wrk -t2 -c50 -d5s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1
           
           echo ">> Step 3: gRPC..."
-          # 此处 ghz 已正确指定了 127.0.0.1:8081/grpc
           ghz --insecure --proto=/tmp/pgo-run/proto/helloworld.proto --call=helloworld.Greeter.SayHello -n 500 127.0.0.1:8081/grpc || true
           
           echo ">> Step 4: High Load..."
-          # 修正：添加 :8081
           wrk -t4 -c100 -d5s http://127.0.0.1:8081
 
-          # 6. 【数据写出】
-          echo ">> 正在写出 PGO 训练数据..."
+          # 6. [优雅退出写出数据]
+          echo ">> 正在写出 PGO Profile 数据..."
           kill -QUIT $NGINX_PID
           sleep 5
-          # 验证数据是否存在
-          ls -R /tmp/pgo-data || echo "⚠️ 未检测到训练数据，请检查权限或路径！"
-
+          
+          # 最终检查是否有 .gcda 文件生成
+          echo ">> PGO 数据检查结果："
+          ls -R /tmp/pgo-data || echo "⚠️ 未发现训练数据！"
 
 
       # --- 第三阶段：最终极致编译 (Final Optimization) ---
