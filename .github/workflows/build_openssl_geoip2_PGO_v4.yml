@@ -119,7 +119,7 @@ jobs:
          #version: 12
          #platform: x64
          
-                        
+                         
       # --- 第一阶段：插桩编译 (Instrument Build) ---
       - name: Stage 1 - Instrument Build
         run: |
@@ -167,7 +167,7 @@ jobs:
             --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
             --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
             --with-ld-opt='-static -flto=auto -fprofile-generate=/tmp/pgo-data'
-           
+            
           
           make -j$(nproc)
           cd ..
@@ -249,7 +249,9 @@ jobs:
           echo ">> PGO 数据检查结果："
           ls -R /tmp/pgo-data || echo "⚠️ 未发现训练数据！"
 
-      
+
+
+
       # --- 第三阶段：最终极致编译 (Final Optimization) ---
       - name: Stage 3 - Final Build
         run: |
@@ -314,18 +316,17 @@ jobs:
           ls -lh objs/nginx
           file objs/nginx     # 确认是否为 statically linked
           ldd objs/nginx || true  # 确认是否报 'not a dynamic executable' (代表静态链接成功)
-      
           
       - name: Strip and Package
         run: |
           # 1. 瘦身：去除调试符号，文件将从 19M 通常能缩减到 5-8M 左右
           strip --strip-all /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          
           # 验证优化后的最终体积        
           ls -lh /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
                   
           # 归档上传
           # tar -czvf nginx-pgo-v4-static.tar.gz -C nginx/objs nginx
-
           
       - uses: actions/upload-artifact@v6
         with:
@@ -334,12 +335,11 @@ jobs:
       
         # Setting an environment variable
         # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
-      
       - name: Set variables
         id: step_one
         shell: bash
         run: |
-          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} Enable_OpenSSL and support ngx_http_geoip2_module PGO v4 build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} Enable_OpenSSL and support ngx_http_geoip2_module build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
           echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
           echo "RELEASE_NAME=nginx-quic" v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')>> $GITHUB_ENV
           
@@ -402,7 +402,7 @@ jobs:
           
       - name: Upload binaries to release
         #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
-        uses: svenstaro/upload-release-action@2.11.4
+        uses: svenstaro/upload-release-action@2.11.2
         #if: github.event_name == 'release'
         with:
           repo_token: ${{ github.token }}          
@@ -410,13 +410,6 @@ jobs:
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
           file: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
-          body: |
-            ### Nginx-Quic Build  
-            ### Happy play !
-            - **Commit ID**: ${{ env.Commit_ID }}
-            - **Optimization**: PGO (Profile Guided Optimization) enabled.
-            - **Arch**: x86-64-v4 (AVX-512)
-            - **Static**: All libraries linked statically.
-            - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS.
+          body: "Happy play "
           overwrite: true
           file_glob: false
