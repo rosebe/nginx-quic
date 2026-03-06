@@ -166,7 +166,7 @@ jobs:
             --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
             --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
-            --with-ld-opt='-static -flto=auto -fprofile-generate=/tmp/pgo-data'
+            --with-ld-opt='-static -flto=auto -fprofile-generate=/tmp/pgo-data' \
             
           
           make -j$(nproc)
@@ -316,18 +316,6 @@ jobs:
           ls -lh objs/nginx
           file objs/nginx     # 确认是否为 statically linked
           ldd objs/nginx || true  # 确认是否报 'not a dynamic executable' (代表静态链接成功)
-    
-      - name: Strip and Package
-        run: |
-          # 去除调试符号，减小体积（通常能缩减到 5-8M 左右）
-          strip --strip-all nginx/objs/nginx
-          
-          # 验证优化后的最终体积
-          ls -lh nginx/objs/nginx
-          
-          # 归档上传
-          # tar -czvf nginx-pgo-v4-static.tar.gz -C nginx/objs nginx
-
           
       - uses: actions/upload-artifact@v6
         with:
