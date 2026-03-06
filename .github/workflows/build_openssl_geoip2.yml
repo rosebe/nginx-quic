@@ -219,21 +219,19 @@ jobs:
           echo "✅ 检测到最新版本: ${LATEST_TAG}"
 
           # --- 下载函数 ---
-          download_geoip_br() {
+          download_geoip() {
               local FILE_BASE=$1
-              local FULL_URL="${DL_BASE}/${LATEST_TAG}/${FILE_BASE}.br"
-              if curl -L -f -sSL "$FULL_URL" -o "/tmp/${FILE_BASE}.br"; then
-                  brotli -d "/tmp/${FILE_BASE}.br" -o "/tmp/pgo-run/geoip/${FILE_BASE}"
+              local FULL_URL="${DL_BASE}/${LATEST_TAG}/${FILE_BASE}"
+              if curl -L -f -sSL "$FULL_URL" -o "/tmp/pgo-run/geoip/${FILE_BASE}"; then
                   [ -s "/tmp/pgo-run/geoip/${FILE_BASE}" ] && echo "✅ ${FILE_BASE} 成功。" || exit 1
-                  rm "/tmp/${FILE_BASE}.br"
               else
                   exit 1
               fi
           }
 
           curl -sSL "$PROTO_URL" -o /tmp/pgo-run/proto/helloworld.proto
-          download_geoip_br "GeoLite2-Country.mmdb"
-          download_geoip_br "GeoLite2-City.mmdb"
+          download_geoip "GeoLite2-Country.mmdb"
+          download_geoip "GeoLite2-City.mmdb"
           
           # 3. 【生成训练配置】(修正 GeoIP2 变量转义 \$)
           cat <<EOF > /tmp/pgo-run/pgo.conf
