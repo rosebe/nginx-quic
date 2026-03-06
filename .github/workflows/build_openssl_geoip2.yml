@@ -220,58 +220,63 @@ jobs:
           
           # 3. 【生成训练配置】
           cat <<'EOF' > /tmp/pgo-run/pgo.conf
-          worker_processes auto;
-          daemon off;
-          error_log /tmp/pgo-run/logs/error.log;
-          pid /tmp/pgo-run/nginx.pid;
-          events { worker_connections 2048; }
-          stream {
-              map $ssl_preread_server_name $backend {
-                  example.com  127.0.0.1:8081; 
-                  default      127.0.0.1:8082; 
-              }
-              server { listen 8443; proxy_pass $backend; ssl_preread on; }
-          }
-          http {
-              # 显式指定临时文件路径，防止去 /usr/local/ 下找
-              client_body_temp_path /tmp/pgo-run/client_body_temp;
-              proxy_temp_path       /tmp/pgo-run/proxy_temp;
-              
-              geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { $geoip2_data_country_code country iso_code; }
-              geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { $geoip2_data_city_name city names en; }
-              map $http_upgrade $connection_upgrade { default upgrade; '' close; }
-              server {
-                  listen 8081;
-                  add_header X-IP-Country $geoip2_data_country_code;
-                  add_header X-IP-City $geoip2_data_city_name;
-                  location /ws {
-                      proxy_pass http://127.0.0.1:9000;
-                      proxy_http_version 1.1;
-                      proxy_set_header Upgrade $http_upgrade;
-                      proxy_set_header Connection $connection_upgrade;
-                  }
-                  location /grpc { grpc_pass grpc://127.0.0.1:50051; }
-                  location / { return 200 "PGO training content"; }
-              }
-          }
-          EOF
+            worker_processes auto;
+            daemon off;
+            error_log /tmp/pgo-run/logs/error.log debug; # 开启 debug 方便追错
+            pid /tmp/pgo-run/nginx.pid;
+
+            events { worker_connections 2048; }
+
+            stream {
+                map $ssl_preread_server_name $backend {
+                    example.com  127.0.0.1:8081;
+                    default      127.0.0.1:8082;
+                }
+                server { listen 8443; proxy_pass $backend; ssl_preread on; }
+            }
+
+            http {
+                # 强制重定向所有硬编码路径到 /tmp
+                client_body_temp_path /tmp/pgo-run/client_body_temp;
+                proxy_temp_path       /tmp/pgo-run/proxy_temp;
+                fastcgi_temp_path     /tmp/pgo-run/fastcgi_temp;
+                uwsgi_temp_path       /tmp/pgo-run/uwsgi_temp;
+                scgi_temp_path        /tmp/pgo-run/scgi_temp;
+
+                geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { $geoip2_data_country_code country iso_code; }
+                geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { $geoip2_data_city_name city names en; }
+                
+                map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+                
+                server {
+                    listen 8081;
+                    location /ws { return 200 "ws_ok"; }
+                    location /grpc { return 200 "grpc_ok"; } # 简化训练，防止后端 502
+                    location / { return 200 "PGO training content"; }
+                }
+            }
+            EOF
+
 
           # 4. 【插桩启动】
-          mkdir -p /tmp/pgo-run/logs /tmp/pgo-data
-          chmod -R 777 /tmp/pgo-data /tmp/pgo-run 
+            mkdir -p /tmp/pgo-run/logs /tmp/pgo-run/client_body_temp /tmp/pgo-data
+            chmod -R 777 /tmp/pgo-run /tmp/pgo-data
 
-          # 启动增加 -p 参数，强制 Nginx 使用 /tmp/pgo-run 作为根路径
-          $(pwd)/nginx/objs/nginx -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
-          NGINX_PID=$!
+            # 使用 -p 参数强制指定 prefix
+            $(pwd)/nginx/objs/nginx -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
+            NGINX_PID=$!
 
-          sleep 5
-          # 检查进程，如果失败打印 stdout 方便排查 (如：缺 dynamic 库)
-          if ! ps -p $NGINX_PID > /dev/null; then
-                echo "❌ Nginx 未启动。错误日志："
-                [ -f /tmp/pgo-run/logs/error.log ] && cat /tmp/pgo-run/logs/error.log
+            sleep 5
+            # 如果进程不在了，打印所有日志并直接报错
+            if ! kill -0 $NGINX_PID 2>/dev/null; then
+                echo "❌ Nginx 启动后崩溃！"
+                echo "--- STDOUT ---"
                 cat /tmp/pgo-run/logs/stdout.log
+                echo "--- ERROR LOG ---"
+                [ -f /tmp/pgo-run/logs/error.log ] && cat /tmp/pgo-run/logs/error.log
                 exit 1
-          fi
+            fi
+
                       
           # 5. 【全场景压测训练】修正说明：必须显式指定 :8081 端口
           echo ">> Step 1: Reality/SNI..."
