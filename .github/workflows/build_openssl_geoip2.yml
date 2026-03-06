@@ -145,8 +145,6 @@ jobs:
             --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
             --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp \
             --http-scgi-temp-path=/var/cache/nginx/scgi_temp \
-            --user=nginx \
-            --group=nginx \
             --with-compat \
             --with-file-aio \
             --with-threads \
@@ -233,34 +231,34 @@ jobs:
           download_geoip "GeoLite2-Country.mmdb"
           download_geoip "GeoLite2-City.mmdb"
           
-          # 3. 【生成训练配置】(修正 GeoIP2 变量转义 \$)
-          cat <<EOF > /tmp/pgo-run/pgo.conf
+          # 3. 【生成训练配置】
+          cat <<'EOF' > /tmp/pgo-run/pgo.conf
           worker_processes auto;
           daemon off;
           error_log /tmp/pgo-run/logs/error.log;
           pid /tmp/pgo-run/nginx.pid;
           events { worker_connections 2048; }
           stream {
-              map \$ssl_preread_server_name \$backend {
+              map $ssl_preread_server_name $backend {
                   example.com  127.0.0.1:8081; 
                   default      127.0.0.1:8082; 
               }
-              server { listen 8443; proxy_pass \$backend; ssl_preread on; }
+              server { listen 8443; proxy_pass $backend; ssl_preread on; }
           }
           http {
-              # 注意：此处必须使用 \$ 符号防止被 Shell 提前解析
-              geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { \$geoip2_data_country_code country iso_code; }
-              geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { \$geoip2_data_city_name city names en; }
-              map \$http_upgrade \$connection_upgrade { default upgrade; '' close; }
+              
+              geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { $geoip2_data_country_code country iso_code; }
+              geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { $geoip2_data_city_name city names en; }
+              map $http_upgrade $connection_upgrade { default upgrade; '' close; }
               server {
                   listen 8081;
-                  add_header X-IP-Country \$geoip2_data_country_code;
-                  add_header X-IP-City \$geoip2_data_city_name;
+                  add_header X-IP-Country $geoip2_data_country_code;
+                  add_header X-IP-City $geoip2_data_city_name;
                   location /ws {
                       proxy_pass http://127.0.0.1:9000;
                       proxy_http_version 1.1;
-                      proxy_set_header Upgrade \$http_upgrade;
-                      proxy_set_header Connection \$connection_upgrade;
+                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Connection $connection_upgrade;
                   }
                   location /grpc { grpc_pass grpc://127.0.0.1:50051; }
                   location / { return 200 "PGO training content"; }
@@ -269,12 +267,22 @@ jobs:
           EOF
 
           # 4. 【插桩启动】
-          ./nginx/objs/nginx -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
-          NGINX_PID=\$!
-          sleep 5
-          kill -0 \$NGINX_PID || { cat /tmp/pgo-run/logs/error.log; exit 1; }
+          mkdir -p /tmp/pgo-run/logs /tmp/pgo-data
+          chmod -R 777 /tmp/pgo-data /tmp/pgo-run 
 
-          
+          # 启动 (使用绝对路径)
+          $(pwd)/nginx/objs/nginx -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
+          NGINX_PID=$!
+
+          sleep 5
+          # 检查进程，如果失败打印 stdout 方便排查 (如：缺 dynamic 库)
+          if ! ps -p $NGINX_PID > /dev/null; then
+                echo "❌ Nginx 未启动。错误日志："
+                [ -f /tmp/pgo-run/logs/error.log ] && cat /tmp/pgo-run/logs/error.log
+                cat /tmp/pgo-run/logs/stdout.log
+                exit 1
+          fi
+                      
           # 5. 【全场景压测训练】修正说明：必须显式指定 :8081 端口
           echo ">> Step 1: Reality/SNI..."
           for i in {1..20}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com >/dev/null 2>&1; done
@@ -292,8 +300,11 @@ jobs:
           wrk -t4 -c100 -d5s http://127.0.0.1:8081
 
           # 6. 【数据写出】
-          kill -QUIT \$NGINX_PID
+          echo ">> 正在写出 PGO 训练数据..."
+          kill -QUIT $NGINX_PID
           sleep 5
+          # 验证数据是否存在
+          ls -R /tmp/pgo-data || echo "⚠️ 未检测到训练数据，请检查权限或路径！"
 
 
 
