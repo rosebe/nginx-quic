@@ -318,8 +318,6 @@ jobs:
           
       - name: Strip and Package
         run: |
-          - name: Strip and Package
-        run: |
           # 1. 瘦身：去除调试符号，文件将从 19M 通常能缩减到 5-8M 左右
           strip --strip-all /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
           # 验证优化后的最终体积        
@@ -336,6 +334,7 @@ jobs:
       
         # Setting an environment variable
         # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
+      
       - name: Set variables
         id: step_one
         shell: bash
