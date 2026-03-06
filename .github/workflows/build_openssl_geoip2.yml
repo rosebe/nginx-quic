@@ -178,22 +178,36 @@ jobs:
           mkdir -p /tmp/pgo-run/proto /tmp/pgo-run/geoip /tmp/pgo-run/logs /tmp/pgo-run/client_body_temp /tmp/pgo-data
           chmod -R 777 /tmp/pgo-run /tmp/pgo-data
 
-          # 2. [下载依赖资源]
+          # 2. [下载依赖资源 - 修复裁剪版]
           G_ROOT="github.com"
           G_PATH="/bojand/ghz/cmd/ghz@latest"
           GHZ_CMD="${G_ROOT}${G_PATH}"
-          PROTO_URL="https://raw.githubusercontent.com"
-          GEO_BASE="https://github.com"
+          
+          # 找回丢失的完整地址
+          PROTO_URL="https://raw.githubusercontent.com/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
+          GEO_BASE="https://github.com/P3TERX/GeoLite.mmdb"
 
           sudo apt-get update && sudo apt-get install -y wrk openssl brotli
           GO111MODULE=on go install "$GHZ_CMD"
           export PATH=$PATH:$(go env GOPATH)/bin
 
           echo "正在追踪 GeoIP 最新版本..."
+          # 获取 Tag 并下载 (增加 -f 失败强制报错，防止下载到 HTML 错误页)
           LATEST_TAG=$(curl -sSI "${GEO_BASE}/releases/latest" | grep -i "^location:" | awk -F'/' '{print $NF}' | tr -d '\r' | xargs)
-          curl -L -sSL "${GEO_BASE}/releases/download/${LATEST_TAG}/GeoLite2-Country.mmdb" -o /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
-          curl -L -sSL "${GEO_BASE}/releases/download/${LATEST_TAG}/GeoLite2-City.mmdb" -o /tmp/pgo-run/geoip/GeoLite2-City.mmdb
-          curl -sSL "$PROTO_URL" -o /tmp/pgo-run/proto/helloworld.proto
+          
+          echo "✅ 检测到版本: ${LATEST_TAG}，开始下载数据库..."
+          curl -Lf -sSL "${GEO_BASE}/releases/download/${LATEST_TAG}/GeoLite2-Country.mmdb" -o /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+          curl -Lf -sSL "${GEO_BASE}/releases/download/${LATEST_TAG}/GeoLite2-City.mmdb" -o /tmp/pgo-run/geoip/GeoLite2-City.mmdb
+          curl -Lf -sSL "$PROTO_URL" -o /tmp/pgo-run/proto/helloworld.proto
+
+          # 增加文件校验：如果文件小于 100KB，通常是下载失败了
+          FILE_SIZE=$(stat -c%s "/tmp/pgo-run/geoip/GeoLite2-Country.mmdb")
+          if [ "$FILE_SIZE" -lt 102400 ]; then
+              echo "❌ 警告: GeoIP 文件过小 ($FILE_SIZE bytes)，可能是下载到了错误的 HTML 页面！"
+              cat /tmp/pgo-run/geoip/GeoLite2-Country.mmdb | head -n 5
+              exit 1
+          fi
+
 
           # 3. [生成训练配置]
           # 注意：EOF 标记必须有缩进以符合 YAML，但 EOF 自身后面严禁有空格
@@ -245,15 +259,20 @@ jobs:
 
           # 5. [全场景压测训练]
           echo ">> Step 1: SNI/Stream..."
+          # 模拟 20 次 SNI 预读请求
           for i in {1..20}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com >/dev/null 2>&1; done
           
+          echo ">> Step 2: WebSocket & GeoIP (触发关键 Header 和 协议升级路径)..."
+          # 修正：指定 /ws 路径以覆盖 location 块逻辑
           echo ">> Step 2: WebSocket & GeoIP..."
-          wrk -t2 -c50 -d5s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1
+          # 强烈建议补全端口 :8081 和路径 /ws
+          wrk -t2 -c50 -d5s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081/ws
           
-          echo ">> Step 3: gRPC..."
+          echo ">> Step 3: gRPC (覆盖 HTTP/2 和 gRPC 模块路径)..."
+          # 使用 || true 防止 ghz 因后端不存在而中断整个脚本
           ghz --insecure --proto=/tmp/pgo-run/proto/helloworld.proto --call=helloworld.Greeter.SayHello -n 500 127.0.0.1:8081/grpc || true
           
-          echo ">> Step 4: High Load..."
+          echo ">> Step 4: High Load (常规 HTTP 处理路径)..."
           wrk -t4 -c100 -d5s http://127.0.0.1:8081
 
           # 6. [优雅退出写出数据]
