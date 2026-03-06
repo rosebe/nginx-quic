@@ -50,6 +50,7 @@ jobs:
                                tar unzip  wget curl tree perl-base
           sudo add-apt-repository ppa:maxmind/ppa
           sudo apt install libmaxminddb0 libmaxminddb-dev mmdb-bin
+          sudo apt-get install -y libtool automake autoconf wrk golang-go
 
       #- name: Setup Go environment
       #  uses: actions/setup-go@v4.0.1
@@ -117,33 +118,145 @@ jobs:
         #with:
          #version: 12
          #platform: x64
-
-                    
-      - name: hg nginx-quic build
+         
+                         
+      # --- 第一阶段：插桩编译 (Instrument Build) ---
+      - name: Stage 1 - Instrument Build
         run: |
-          sudo apt-get -y install subversion-tools
-          # hg clone -b quic https://hg.nginx.org/nginx-quic
-          #hg clone -b default https://hg.nginx.org/nginx-quic
-          git clone https://github.com/nginx/nginx.git
           
-          # wget https://hg.nginx.org/nginx-quic/archive/tip.tar.gz
-          # tar xzvf tip.tar.gz
-          # mv $(ls -l | grep nginx-quic | awk '{print $9}') nginx-quic
-           
+          git clone https://github.com/nginx/nginx.git
           cd nginx
+         
           echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
           
           curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
           
-          #cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
-          #patch -p1 < nginx_dynamic_tls_records.patch
+          ./auto/configure \
+            --with-compat \
+            --with-file-aio \
+            --with-threads \
+            --with-http_addition_module \
+            --with-http_auth_request_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_mp4_module \
+            --with-http_random_index_module \
+            --with-http_realip_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_ssl_module \
+            --with-http_stub_status_module \
+            --with-http_sub_module \
+            --with-http_v2_module \
+            --with-mail \
+            --with-mail_ssl_module \
+            --with-stream \
+            --with-stream_realip_module \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --add-module=../ngx_brotli \
+            --with-pcre=../pcre2 \
+            --with-pcre-jit \
+            --with-zlib=../zlib-cf \
+            --with-http_v3_module \
+            --add-module=../ngx_http_geoip2_module \
+            --with-openssl=../openssl  \
+            --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
+            --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
+            --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
+            --with-ld-opt='-static -flto=auto -fprofile-generate=/tmp/pgo-data' \
+            
           
-          #cp ../nginx.patch ./nginx.patch
-          #patch -p1 < nginx.patch
+          make -j$(nproc)
+          cd ..
+
+      - name: Stage 2 - Full Scenario Training (PGO)
+        run: |
+          # 1. [定义绝对路径 - 解决嵌套路径风险]
+          # 根据你的验证，源码二进制文件位于以下深度路径
+          G_WORKSPACE="${{ github.workspace }}"
+          NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"         
           
-          #cp ../option.patch ./option.patch
-          #patch -p1 < option.patch
-                   
+          # 1. [环境整备] 
+          sudo apt-get update && sudo apt-get install -y wrk openssl
+          
+          # 2. [构建 PGO 沙盒路径]
+          rm -rf /tmp/pgo-run /tmp/pgo-data
+          mkdir -p /tmp/pgo-run/proto \
+                   /tmp/pgo-run/geoip \
+                   /tmp/pgo-run/logs \
+                   /tmp/pgo-run/client_body_temp \
+                   /tmp/pgo-run/proxy_temp \
+                   /tmp/pgo-run/fastcgi_temp \
+                   /tmp/pgo-run/uwsgi_temp \
+                   /tmp/pgo-run/scgi_temp \
+                   /tmp/pgo-data
+          
+          chmod -R 777 /tmp/pgo-run /tmp/pgo-data
+
+          # 3. [分发仓库本地资源]
+          echo ">> 正在从工作目录分发配置文件和数据库..."
+          # 假设 pgo.conf 和 GeoLite2-Country.mmdb 就在仓库根目录下
+          cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
+          cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+
+          # 下载训练所需的 helloworld.proto
+          PROTO_URL="https://raw.githubusercontent.com/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
+          curl -Lf -sSL "$PROTO_URL" -o /tmp/pgo-run/proto/helloworld.proto
+
+          # 安装 ghz 压测工具
+          GHZ_URL="github.com/bojand/ghz/cmd/ghz@latest"
+          GO111MODULE=on go install "$GHZ_URL"
+          export PATH=$PATH:$(go env GOPATH)/bin
+
+          # 4. [插桩启动与诊断]
+          echo ">> 启动插桩版 Nginx..."
+          # 使用 sudo 启动以确保能向 /tmp/pgo-data 写入 GCC profile 数据
+          sudo "$NGINX_BIN" -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
+          NGINX_PID=$!
+          
+          sleep 10
+          if ! kill -0 $NGINX_PID 2>/dev/null; then
+              echo "❌ Nginx 启动崩溃！错误日志追踪："
+              [ -f /tmp/pgo-run/logs/error.log ] && tail -n 50 /tmp/pgo-run/logs/error.log
+              cat /tmp/pgo-run/logs/stdout.log
+              exit 1
+          fi
+
+          # 5. [全场景模拟压测训练]
+          echo ">> 压测开始 (带容错保护)..."
+          
+          # Step 1: Stream/SNI (触发四层解析代码)
+          for i in {1..20}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com >/dev/null 2>&1 || true; done
+          
+          # Step 2: HTTP/WebSocket & GeoIP (修正：添加端口和路径)
+          wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081/ws || true
+          
+          # Step 3: gRPC (触发 HTTP/2 解码逻辑)
+          ghz --insecure --proto=/tmp/pgo-run/proto/helloworld.proto --call=helloworld.Greeter.SayHello -n 500 127.0.0.1:8081/grpc || true
+          
+          # Step 4: High Load (常规 HTTP 静态处理)
+          wrk -t4 -c100 -d10s http://127.0.0.1:8081 || true
+
+          # 6. [写出 PGO Profile 数据]
+          echo ">> 正在触发 Profile 数据落盘 (.gcda)..."
+          sudo kill -QUIT $NGINX_PID
+          sleep 10
+          
+          # 最终检查是否有 .gcda 文件生成
+          echo ">> PGO 数据检查结果："
+          ls -R /tmp/pgo-data || echo "⚠️ 未发现训练数据！"
+
+
+
+
+      # --- 第三阶段：最终极致编译 (Final Optimization) ---
+      - name: Stage 3 - Final Build
+        run: |
+          cd nginx
+          make clean
           ./auto/configure \
             --prefix=/etc/nginx \
             --sbin-path=/usr/sbin/nginx \
@@ -193,10 +306,16 @@ jobs:
             --with-openssl=../openssl  \
             --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
-            --with-cc-opt='-static -static-libgcc -O3 -flto=auto' \
-            --with-ld-opt='-static -flto=auto' 
-         
-          sudo make -j$(nproc --all)
+            --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction' \
+            --with-ld-opt='-static -flto=auto -fprofile-use=/tmp/pgo-data' 
+            
+          
+          make -j$(nproc)
+          
+          # 在 Stage 3 结尾添加
+          ls -lh objs/nginx
+          file objs/nginx     # 确认是否为 statically linked
+          ldd objs/nginx || true  # 确认是否报 'not a dynamic executable' (代表静态链接成功)
           
       - uses: actions/upload-artifact@v6
         with:
