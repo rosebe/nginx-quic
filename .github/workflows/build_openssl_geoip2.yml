@@ -233,6 +233,9 @@ jobs:
               server { listen 8443; proxy_pass $backend; ssl_preread on; }
           }
           http {
+              # 显式指定临时文件路径，防止去 /usr/local/ 下找
+              client_body_temp_path /tmp/pgo-run/client_body_temp;
+              proxy_temp_path       /tmp/pgo-run/proxy_temp;
               
               geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { $geoip2_data_country_code country iso_code; }
               geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { $geoip2_data_city_name city names en; }
@@ -257,8 +260,8 @@ jobs:
           mkdir -p /tmp/pgo-run/logs /tmp/pgo-data
           chmod -R 777 /tmp/pgo-data /tmp/pgo-run 
 
-          # 启动 (使用绝对路径)
-          $(pwd)/nginx/objs/nginx -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
+          # 启动增加 -p 参数，强制 Nginx 使用 /tmp/pgo-run 作为根路径
+          $(pwd)/nginx/objs/nginx -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
           NGINX_PID=$!
 
           sleep 5
