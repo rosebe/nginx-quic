@@ -219,43 +219,45 @@ jobs:
           download_geoip "GeoLite2-City.mmdb"
           
           # 3. 【生成训练配置】
+          # 这一行前面的空格必须去掉！
+          # 关键点：EOF 这一块相对于 run:| 必须有缩进，但 EOF 标志本身前后不能有空格
           cat <<'EOF' > /tmp/pgo-run/pgo.conf
-            worker_processes auto;
-            daemon off;
-            error_log /tmp/pgo-run/logs/error.log debug; # 开启 debug 方便追错
-            pid /tmp/pgo-run/nginx.pid;
+worker_processes auto;
+daemon off;
+error_log /tmp/pgo-run/logs/error.log;
+pid /tmp/pgo-run/nginx.pid;
+events { worker_connections 2048; }
+stream {
+    map $ssl_preread_server_name $backend {
+        example.com  127.0.0.1:8081; 
+        default      127.0.0.1:8082; 
+    }
+    server { listen 8443; proxy_pass $backend; ssl_preread on; }
+}
+http {
+    # 强制重定向所有硬编码路径到 /tmp，防止权限报错
+    client_body_temp_path /tmp/pgo-run/client_body_temp;
+    proxy_temp_path       /tmp/pgo-run/proxy_temp;
+    fastcgi_temp_path     /tmp/pgo-run/fastcgi_temp;
+    uwsgi_temp_path       /tmp/pgo-run/uwsgi_temp;
+    scgi_temp_path        /tmp/pgo-run/scgi_temp;
 
-            events { worker_connections 2048; }
+    geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { $geoip2_data_country_code country iso_code; }
+    geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { $geoip2_data_city_name city names en; }
+    map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+    server {
+        listen 8081;
+        add_header X-IP-Country $geoip2_data_country_code;
+        add_header X-IP-City $geoip2_data_city_name;
+        location /ws { return 200 "ws_ok"; }
+        location /grpc { return 200 "grpc_ok"; }
+        location / { return 200 "PGO training content"; }
+    }
+}
+EOF
+          # ↑ 这一行 EOF 必须紧贴左侧边缘，不能有任何缩进！
+          # 确认 EOF 后面没有空格，且后续代码恢复正常缩进
 
-            stream {
-                map $ssl_preread_server_name $backend {
-                    example.com  127.0.0.1:8081;
-                    default      127.0.0.1:8082;
-                }
-                server { listen 8443; proxy_pass $backend; ssl_preread on; }
-            }
-
-            http {
-                # 强制重定向所有硬编码路径到 /tmp
-                client_body_temp_path /tmp/pgo-run/client_body_temp;
-                proxy_temp_path       /tmp/pgo-run/proxy_temp;
-                fastcgi_temp_path     /tmp/pgo-run/fastcgi_temp;
-                uwsgi_temp_path       /tmp/pgo-run/uwsgi_temp;
-                scgi_temp_path        /tmp/pgo-run/scgi_temp;
-
-                geoip2 /tmp/pgo-run/geoip/GeoLite2-Country.mmdb { $geoip2_data_country_code country iso_code; }
-                geoip2 /tmp/pgo-run/geoip/GeoLite2-City.mmdb { $geoip2_data_city_name city names en; }
-                
-                map $http_upgrade $connection_upgrade { default upgrade; '' close; }
-                
-                server {
-                    listen 8081;
-                    location /ws { return 200 "ws_ok"; }
-                    location /grpc { return 200 "grpc_ok"; } # 简化训练，防止后端 502
-                    location / { return 200 "PGO training content"; }
-                }
-            }
-            EOF
 
 
           # 4. 【插桩启动】
