@@ -118,9 +118,7 @@ jobs:
         #with:
          #version: 12
          #platform: x64
-         
-                        
-      
+       
       - name: Stage 0 - Standard Edition Build
         run: |
           
@@ -179,11 +177,7 @@ jobs:
           
           cd /home/runner/work/nginx-quic/nginx-quic/nginx
           make clean
-         
-          echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
-          
-          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
-          
+               
           ./auto/configure \
             --with-compat \
             --with-file-aio \
