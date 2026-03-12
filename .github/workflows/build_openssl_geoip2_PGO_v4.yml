@@ -197,11 +197,17 @@ jobs:
             go install "github.com/bojand/ghz/cmd/ghz@latest"
             export PATH=$PATH:$(go env GOPATH)/bin
 
-            # 4. [启动 gRPC 桩服务]
+            # --- [启动 gRPC 桩服务] ---
             git clone --depth 1 "${G_HOST}${G_REPO}"
-            ( cd grpc-go/examples/helloworld/greeter_server && go run main.go & )
+            cd grpc-go/examples/helloworld/greeter_server
+            go run main.go > /tmp/grpc-backend.log 2>&1 &
             BACKEND_PID=$!
-            sleep 5
+            cd -
+
+            # [重要：等待 gRPC 后端就绪]
+            echo ">> 等待 gRPC 后端 (50051) 就绪..."
+            timeout 30s bash -c 'until nc -z localhost 50051; do sleep 1; done' || echo "⚠️ gRPC 后端启动超时"
+
 
             # 5. [插桩启动 - 核心修正：启动前导出变量]
             echo ">> 启动插桩版 Nginx (Path: /tmp/pgo-data)..."
@@ -211,25 +217,30 @@ jobs:
             sudo -E "$NGINX_BIN" -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
             NGINX_PID=$!
             
-            sleep 5
-            kill -0 $NGINX_PID || { cat /tmp/pgo-run/logs/stdout.log; exit 1; }
+            # [重要：等待 Nginx 端口就绪]
+            echo ">> 等待 Nginx (8081) 就绪..."
+            timeout 10s bash -c 'until nc -z localhost 8081; do sleep 1; done' || exit 1
+
+            
+            #sleep 5
+            #kill -0 $NGINX_PID || { cat /tmp/pgo-run/logs/stdout.log; exit 1; }
 
             # 6. [精准压测]
             # A. Stream
             for i in {1..30}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1 || true; done
-            # B. gRPC (增加重试逻辑，确保后端已就绪)
+            # B. gRPC (增加容错，避免 502 导致 Action 中断)
             echo ">> 训练 gRPC 逻辑..."
-            for i in {1..3}; do
-                ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
-                    --call helloworld.Greeter.SayHello -n 1000 127.0.0.1:8081 && break || sleep 2
-            done
+            ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+                --call helloworld.Greeter.SayHello -n 1000 127.0.0.1:8081 || true 
+
 
             # C. HTTP/WS (指向 8081)
             wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
 
             # 7. [收割数据]
-            sudo kill -QUIT $NGINX_PID
-            kill $BACKEND_PID
+            echo ">> 正在触发 Profile 数据落盘..."
+            [ -n "$NGINX_PID" ] && sudo kill -QUIT $NGINX_PID || true
+            [ -n "$BACKEND_PID" ] && kill $BACKEND_PID || true
             sleep 10
             
             echo ">> 最终统计成果："
