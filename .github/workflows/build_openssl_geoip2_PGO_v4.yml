@@ -120,14 +120,12 @@ jobs:
          #platform: x64
          
                         
-      
       # --- 第一阶段：插桩编译 (Instrument Build) ---
       - name: Stage 1 - Instrument Build
         run: |
+          
           git clone https://github.com/nginx/nginx.git
           cd nginx
-          #cd /home/runner/work/nginx-quic/nginx-quic/nginx
-          make clean
          
           echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
           
@@ -173,7 +171,6 @@ jobs:
           
           make -j$(nproc)
           cd ..
-          
 
       - name: Stage 2 - Full Scenario Training (PGO)
         run: |
@@ -255,7 +252,7 @@ jobs:
       # --- 第三阶段：最终极致编译 (Final Optimization) ---
       - name: Stage 3 - Final Build
         run: |
-          cd /home/runner/work/nginx-quic/nginx-quic/nginx
+          cd nginx
           make clean
           ./auto/configure \
             --prefix=/etc/nginx \
@@ -329,64 +326,7 @@ jobs:
           # tar -czvf nginx-pgo-v4-static.tar.gz -C nginx/objs nginx
 
           
-      - name: Benchmark
-        run: |
-                        
-            STD_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx.std"
-            PGO_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
             
-            # 拼接并下载
-            chmod +x "$STD_BIN" "$PGO_BIN"
-
-            # [2. 定义压测函数]
-            RESULT_FILE="benchmark_result.txt"
-            echo "### 🚀 Nginx PGO 性能对比测试" > $RESULT_FILE
-
-            run_bench() {
-                local NAME=$1
-                local BIN=$2
-                echo ">> 正在测试: $NAME"
-                echo ">> 验证二进制: $NAME"
-    
-                # 增加 -t 参数进行配置检查，如果不通过则直接跳过
-                if ! sudo $BIN -t -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf; then
-                    echo "❌ $NAME 二进制无法在此环境运行，跳过..."
-                    return
-                fi
-                
-                sudo $BIN -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf &
-                local PID=$!
-                
-                timeout 10s bash -c 'until nc -z localhost 8081; do sleep 1; done'
-                
-                echo -e "\n#### $NAME 原始数据" >> $RESULT_FILE
-                echo '```text' >> $RESULT_FILE
-                wrk -t4 -c200 -d30s http://127.0.0.1:8081 >> $RESULT_FILE
-                echo '```' >> $RESULT_FILE
-                
-                sudo kill -9 $PID
-                sleep 2
-            }
-
-            # [3. 执行对比]
-            run_bench "Standard_Build" "$STD_BIN"
-            run_bench "PGO_Optimized" "$PGO_BIN"
-
-            # [4. 结果计算]
-            STD_RPS=$(grep "Requests/sec" $RESULT_FILE | head -n 1 | awk '{print $2}')
-            PGO_RPS=$(grep "Requests/sec" $RESULT_FILE | tail -n 1 | awk '{print $2}')
-
-            if [ -n "$STD_RPS" ] && [ -n "$PGO_RPS" ]; then
-                IMPROVEMENT=$(awk -v p="$PGO_RPS" -v s="$STD_RPS" 'BEGIN {printf "%.2f", (p-s)/s*100}')
-                echo -e "\n### 📈 性能结论\n**RPS 提升幅度: ${IMPROVEMENT}%**" >> $RESULT_FILE
-                echo "RPS_IMP=${IMPROVEMENT}" >> $GITHUB_ENV
-            fi
-            
-            cat $RESULT_FILE
-
-
-      
-      
       - uses: actions/upload-artifact@v6
         with:
           name: nginx-quic.Openssl
