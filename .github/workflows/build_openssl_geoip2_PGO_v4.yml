@@ -174,80 +174,68 @@ jobs:
 
       - name: Stage 2 - Full Scenario Training (PGO)
         run: |
-          # 1. [定义绝对路径 - 解决嵌套路径风险]
-          # 根据你的验证，源码二进制文件位于以下深度路径
-          G_WORKSPACE="${{ github.workspace }}"
-          NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"         
-          
-          # 1. [环境整备] 
-          sudo apt-get update && sudo apt-get install -y wrk openssl
-          
-          # 2. [构建 PGO 沙盒路径]
-          rm -rf /tmp/pgo-run /tmp/pgo-data
-          mkdir -p /tmp/pgo-run/proto \
-                   /tmp/pgo-run/geoip \
-                   /tmp/pgo-run/logs \
-                   /tmp/pgo-run/client_body_temp \
-                   /tmp/pgo-run/proxy_temp \
-                   /tmp/pgo-run/fastcgi_temp \
-                   /tmp/pgo-run/uwsgi_temp \
-                   /tmp/pgo-run/scgi_temp \
-                   /tmp/pgo-data
-          
-          chmod -R 777 /tmp/pgo-run /tmp/pgo-data
+            # 1. [变量拼接协议 - 防裁剪]
+            G_RAW="https://raw.githubusercontent.com"
+            G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
+            G_HOST="https://github.com"
+            G_REPO="/grpc/grpc-go.git"
+            
+            NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+            G_WORKSPACE="${{ github.workspace }}"
 
-          # 3. [分发仓库本地资源]
-          echo ">> 正在从工作目录分发配置文件和数据库..."
-          # 假设 pgo.conf 和 GeoLite2-Country.mmdb 就在仓库根目录下
-          cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
-          cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+            # 2. [环境整备]
+            sudo apt-get update && sudo apt-get install -y wrk openssl
+            rm -rf /tmp/pgo-run /tmp/pgo-data
+            mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
+            chmod -R 777 /tmp/pgo-run /tmp/pgo-data
 
-          # 下载训练所需的 helloworld.proto
-          PROTO_URL="https://raw.githubusercontent.com/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
-          curl -Lf -sSL "$PROTO_URL" -o /tmp/pgo-run/proto/helloworld.proto
+            # 3. [资源分发]
+            cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
+            cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+            curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/pgo-run/proto/helloworld.proto
 
-          # 安装 ghz 压测工具
-          GHZ_URL="github.com/bojand/ghz/cmd/ghz@latest"
-          GO111MODULE=on go install "$GHZ_URL"
-          export PATH=$PATH:$(go env GOPATH)/bin
+            go install "github.com/bojand/ghz/cmd/ghz@latest"
+            export PATH=$PATH:$(go env GOPATH)/bin
 
-          # 4. [插桩启动与诊断]
-          echo ">> 启动插桩版 Nginx..."
-          # 使用 sudo 启动以确保能向 /tmp/pgo-data 写入 GCC profile 数据
-          sudo "$NGINX_BIN" -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
-          NGINX_PID=$!
-          
-          sleep 10
-          if ! kill -0 $NGINX_PID 2>/dev/null; then
-              echo "❌ Nginx 启动崩溃！错误日志追踪："
-              [ -f /tmp/pgo-run/logs/error.log ] && tail -n 50 /tmp/pgo-run/logs/error.log
-              cat /tmp/pgo-run/logs/stdout.log
-              exit 1
-          fi
+            # 4. [启动 gRPC 桩服务]
+            git clone --depth 1 "${G_HOST}${G_REPO}"
+            ( cd grpc-go/examples/helloworld/greeter_server && go run main.go & )
+            BACKEND_PID=$!
+            sleep 5
 
-          # 5. [全场景模拟压测训练]
-          echo ">> 压测开始 (带容错保护)..."
-          
-          # Step 1: Stream/SNI (触发四层解析代码)
-          for i in {1..20}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com >/dev/null 2>&1 || true; done
-          
-          # Step 2: HTTP/WebSocket & GeoIP (修正：添加端口和路径)
-          wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081/ws || true
-          
-          # Step 3: gRPC (触发 HTTP/2 解码逻辑)
-          ghz --insecure --proto=/tmp/pgo-run/proto/helloworld.proto --call=helloworld.Greeter.SayHello -n 500 127.0.0.1:8081/grpc || true
-          
-          # Step 4: High Load (常规 HTTP 静态处理)
-          wrk -t4 -c100 -d10s http://127.0.0.1:8081 || true
+            # 5. [插桩启动 - 核心修正：启动前导出变量]
+            echo ">> 启动插桩版 Nginx (Path: /tmp/pgo-data)..."
+            export GCOV_PREFIX="/tmp/pgo-data"
+            export GCOV_PREFIX_STRIP=0
+            # 使用 -E 传递环境变量给 sudo 
+            sudo -E "$NGINX_BIN" -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf > /tmp/pgo-run/logs/stdout.log 2>&1 &
+            NGINX_PID=$!
+            
+            sleep 5
+            kill -0 $NGINX_PID || { cat /tmp/pgo-run/logs/stdout.log; exit 1; }
 
-          # 6. [写出 PGO Profile 数据]
-          echo ">> 正在触发 Profile 数据落盘 (.gcda)..."
-          sudo kill -QUIT $NGINX_PID
-          sleep 10
-          
-          # 最终检查是否有 .gcda 文件生成
-          echo ">> PGO 数据检查结果："
-          ls -R /tmp/pgo-data || echo "⚠️ 未发现训练数据！"
+            # 6. [精准压测]
+            # A. Stream
+            for i in {1..30}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1 || true; done
+            # B. gRPC (增加重试逻辑，确保后端已就绪)
+            echo ">> 训练 gRPC 逻辑..."
+            for i in {1..3}; do
+                ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+                    --call helloworld.Greeter.SayHello -n 1000 127.0.0.1:8081 && break || sleep 2
+            done
+
+            # C. HTTP/WS (指向 8081)
+            wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
+
+            # 7. [收割数据]
+            sudo kill -QUIT $NGINX_PID
+            kill $BACKEND_PID
+            sleep 10
+            
+            echo ">> 最终统计成果："
+            find /tmp/pgo-data -name "*.gcda" | wc -l
+
+
 
       
       # --- 第三阶段：最终极致编译 (Final Optimization) ---
