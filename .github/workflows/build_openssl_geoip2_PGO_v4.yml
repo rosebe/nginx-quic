@@ -120,12 +120,65 @@ jobs:
          #platform: x64
          
                         
-      # --- 第一阶段：插桩编译 (Instrument Build) ---
-      - name: Stage 1 - Instrument Build
+      
+      - name: Stage 0 - Standard Edition Build
         run: |
           
           git clone https://github.com/nginx/nginx.git
           cd nginx
+         
+          echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
+          
+          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
+          
+          ./auto/configure \
+            --with-compat \
+            --with-file-aio \
+            --with-threads \
+            --with-http_addition_module \
+            --with-http_auth_request_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_mp4_module \
+            --with-http_random_index_module \
+            --with-http_realip_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_ssl_module \
+            --with-http_stub_status_module \
+            --with-http_sub_module \
+            --with-http_v2_module \
+            --with-mail \
+            --with-mail_ssl_module \
+            --with-stream \
+            --with-stream_realip_module \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --add-module=../ngx_brotli \
+            --with-pcre=../pcre2 \
+            --with-pcre-jit \
+            --with-zlib=../zlib-cf \
+            --with-http_v3_module \
+            --add-module=../ngx_http_geoip2_module \
+            --with-openssl=../openssl  \
+            --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
+            --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
+            --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v3 -flto=auto \
+            --with-ld-opt='-static -flto=auto
+           
+          
+          make -j$(nproc)
+          cd ..
+          cp /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx.std
+          
+      # --- 第一阶段：插桩编译 (Instrument Build) ---
+      - name: Stage 1 - Instrument Build
+        run: |
+          
+          cd /home/runner/work/nginx-quic/nginx-quic/nginx
+          make clean
          
           echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
           
@@ -171,6 +224,7 @@ jobs:
           
           make -j$(nproc)
           cd ..
+          
 
       - name: Stage 2 - Full Scenario Training (PGO)
         run: |
@@ -252,7 +306,7 @@ jobs:
       # --- 第三阶段：最终极致编译 (Final Optimization) ---
       - name: Stage 3 - Final Build
         run: |
-          cd nginx
+          cd /home/runner/work/nginx-quic/nginx-quic/nginx
           make clean
           ./auto/configure \
             --prefix=/etc/nginx \
@@ -328,16 +382,11 @@ jobs:
           
       - name: Benchmark
         run: |
-            # [1. 准备对照组 - 遵循变量拼接协议]
-            G_HOST="https://github.com"
-            G_RELEASE_PATH="/rosebe/nginx-quic/releases/download/v1.29.7"
-            G_FILENAME="/nginx-quic-static.v1.29.7.e23e7dd83.Enable_OpenSSL.and.support.ngx_http_geoip2_module.build.on.2026_03_12-11.07.42"
-            
+                        
             STD_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx.std"
             PGO_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
             
             # 拼接并下载
-            curl -Lf -sSL "${G_HOST}${G_RELEASE_PATH}${G_FILENAME}" -o "$STD_BIN"
             chmod +x "$STD_BIN" "$PGO_BIN"
 
             # [2. 定义压测函数]
@@ -348,6 +397,13 @@ jobs:
                 local NAME=$1
                 local BIN=$2
                 echo ">> 正在测试: $NAME"
+                echo ">> 验证二进制: $NAME"
+    
+                # 增加 -t 参数进行配置检查，如果不通过则直接跳过
+                if ! sudo $BIN -t -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf; then
+                    echo "❌ $NAME 二进制无法在此环境运行，跳过..."
+                    return
+                fi
                 
                 sudo $BIN -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf &
                 local PID=$!
