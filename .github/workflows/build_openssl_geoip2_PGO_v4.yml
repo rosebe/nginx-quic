@@ -381,23 +381,21 @@ jobs:
     
       - name: Benchmark
         run: |
-                        
-            STD_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx.std"
-            PGO_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
-            
-            # 拼接并下载
-            chmod +x "$STD_BIN" "$PGO_BIN"
+          STD_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx.std"
+          PGO_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+          # 拼接并下载
+          chmod +x "$STD_BIN" "$PGO_BIN"
 
-            # [2. 定义压测函数]
-            RESULT_FILE="benchmark_result.txt"
-            echo "### 🚀 Nginx PGO 性能对比测试" > $RESULT_FILE
+          # [2. 定义压测函数]
+          RESULT_FILE="benchmark_result.txt"
+          echo "### 🚀 Nginx PGO 性能对比测试" > $RESULT_FILE
 
-            run_bench() {
+          run_bench() {
                 local NAME=$1
                 local BIN=$2
                 echo ">> 正在测试: $NAME"
                 echo ">> 验证二进制: $NAME"
-    
+                
                 # 增加 -t 参数进行配置检查，如果不通过则直接跳过
                 if ! sudo $BIN -t -p /tmp/pgo-run -c /tmp/pgo-run/pgo.conf; then
                     echo "❌ $NAME 二进制无法在此环境运行，跳过..."
@@ -416,27 +414,24 @@ jobs:
                 
                 sudo kill -9 $PID
                 sleep 2
-            }
+          }
+          
+          # [3. 执行对比]
+          run_bench "Standard_Build" "$STD_BIN"
+          run_bench "PGO_Optimized" "$PGO_BIN"
 
-            # [3. 执行对比]
-            run_bench "Standard_Build" "$STD_BIN"
-            run_bench "PGO_Optimized" "$PGO_BIN"
+          # [4. 结果计算]
+          STD_RPS=$(grep "Requests/sec" $RESULT_FILE | head -n 1 | awk '{print $2}')
+          PGO_RPS=$(grep "Requests/sec" $RESULT_FILE | tail -n 1 | awk '{print $2}')
 
-            # [4. 结果计算]
-            STD_RPS=$(grep "Requests/sec" $RESULT_FILE | head -n 1 | awk '{print $2}')
-            PGO_RPS=$(grep "Requests/sec" $RESULT_FILE | tail -n 1 | awk '{print $2}')
-
-            if [ -n "$STD_RPS" ] && [ -n "$PGO_RPS" ]; then
+          if [ -n "$STD_RPS" ] && [ -n "$PGO_RPS" ]; then
                 IMPROVEMENT=$(awk -v p="$PGO_RPS" -v s="$STD_RPS" 'BEGIN {printf "%.2f", (p-s)/s*100}')
                 echo -e "\n### 📈 性能结论\n**RPS 提升幅度: ${IMPROVEMENT}%**" >> $RESULT_FILE
                 echo "RPS_IMP=${IMPROVEMENT}" >> $GITHUB_ENV
-            fi
+          fi
             
-            cat $RESULT_FILE
-
-
-      
-      
+          cat $RESULT_FILE
+          
       - uses: actions/upload-artifact@v6
         with:
           name: nginx-quic.Openssl
