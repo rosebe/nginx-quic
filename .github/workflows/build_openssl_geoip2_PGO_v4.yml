@@ -378,10 +378,7 @@ jobs:
           strip --strip-all /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
           # 验证优化后的最终体积        
           ls -lh /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
-                  
-          # 归档上传
-          # tar -czvf nginx-pgo-v4-static.tar.gz -C nginx/objs nginx
-
+    
       - name: Benchmark
         run: |
                         
