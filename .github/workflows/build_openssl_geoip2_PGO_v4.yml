@@ -401,8 +401,18 @@ jobs:
                 wrk -t4 -c200 -d30s http://127.0.0.1:8081 >> $RESULT_FILE
                 echo '```' >> $RESULT_FILE
                 
-                sudo kill -9 $PID
-                sleep 2
+                # 1. 先尝试正常杀掉 Master 进程
+                sudo kill -9 $PID 2>/dev/null || true
+    
+                # 2. 精准清理：根据二进制路径杀掉所有残留进程（包含 Worker）
+                # 使用 $BIN 变量，确保只杀掉当前测试的 Standard 或 PGO 版本
+                sudo pkill -9 -f "$BIN" || true
+    
+                # 3. 强制释放端口（双重保险）
+                sudo fuser -k 8081/tcp 8443/tcp 8082/tcp 2>/dev/null || true
+    
+                echo ">> $NAME 测试完成，清理环境..."
+                sleep 5
           }
           
           # [3. 执行对比]
