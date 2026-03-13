@@ -185,7 +185,7 @@ jobs:
          
           echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
           
-          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
+          #curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
           
           ./auto/configure \
             --with-compat \
