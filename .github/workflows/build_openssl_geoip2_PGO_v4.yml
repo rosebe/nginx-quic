@@ -314,7 +314,7 @@ jobs:
           #make -j$(nproc)
           
           # 使用 -B 强制重新编译所有目标，但不会执行删除动作
-          #make -j$(nproc) -B
+          make -j$(nproc) -B
           
           # 在 Stage 3 结尾添加
           ls -lh objs/nginx
