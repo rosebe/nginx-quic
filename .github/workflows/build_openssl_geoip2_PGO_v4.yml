@@ -255,6 +255,7 @@ jobs:
           cd nginx
           #make clean
           rm -rf /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          find /home/runner/work/nginx-quic/nginx-quic/nginx/objs -name "*.o" -delete
           ./auto/configure \
             --prefix=/etc/nginx \
             --sbin-path=/usr/sbin/nginx \
