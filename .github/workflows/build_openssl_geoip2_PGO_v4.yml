@@ -126,7 +126,7 @@ jobs:
           git clone https://github.com/nginx/nginx.git
           cd nginx
           #cd /home/runner/work/nginx-quic/nginx-quic/nginx
-          make clean
+          #make clean
          
           echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
           
