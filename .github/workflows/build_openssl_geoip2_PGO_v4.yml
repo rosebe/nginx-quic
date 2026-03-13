@@ -172,8 +172,8 @@ jobs:
           
           make -j$(nproc)
           cd ..
-          cp /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx.std
-          
+          cp /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx /home/runner/work/nginx-quic/nginx-quic/nginx.std
+          ls -lh /home/runner/work/nginx-quic/nginx-quic/nginx.std || exit 1
 
       # --- 第一阶段：插桩编译 (Instrument Build) ---
       - name: Stage 1 - Instrument Build
@@ -381,6 +381,7 @@ jobs:
     
       - name: Benchmark
         run: |
+          cp /home/runner/work/nginx-quic/nginx-quic/nginx.std /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx.std
           STD_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx.std"
           PGO_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
           # 拼接并下载
