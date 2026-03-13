@@ -519,7 +519,7 @@ jobs:
             ### Happy play !
             - **Commit ID**: ${{ env.Commit_ID }}
             - **Optimization**: PGO (Profile Guided Optimization) enabled.
-            - **Arch**: x86-64-v4 (AVX-512)
+            - **Arch**: x86-64-v3 
             - **Static**: All libraries linked statically.
             - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS.
           overwrite: true
