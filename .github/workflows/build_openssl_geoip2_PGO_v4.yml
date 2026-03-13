@@ -253,7 +253,8 @@ jobs:
       - name: Stage 3 - Final Build
         run: |
           cd nginx
-          make clean
+          #make clean
+          rm -rf /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
           ./auto/configure \
             --prefix=/etc/nginx \
             --sbin-path=/usr/sbin/nginx \
@@ -303,8 +304,11 @@ jobs:
             --with-openssl=../openssl  \
             --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v4 (AVX-512). And build on $(date +%Y_%m_%d-%H:%M:%S)" \
-            --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction' \
-            --with-ld-opt='-static -flto=auto -fprofile-use=/tmp/pgo-data' 
+            --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
+            --with-ld-opt='-static -flto=auto -fprofile-use -fprofile-dir=/tmp/pgo-data'
+            
+            #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction' \
+            #--with-ld-opt='-static -flto=auto -fprofile-use=/tmp/pgo-data' 
             
           
           make -j$(nproc)
