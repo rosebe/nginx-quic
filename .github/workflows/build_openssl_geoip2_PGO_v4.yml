@@ -312,7 +312,8 @@ jobs:
           cd /home/runner/work/nginx-quic/nginx-quic/nginx
           #make clean
           # 只删除 nginx 的 objs，不要去动 ../pcre2 等依赖目录，否则数据会被删光
-          rm -rf /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx 
+          rm -rf /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          find /home/runner/work/nginx-quic/nginx-quic/nginx/objs -name "*.o" -delete
           # 重新配置，确保和 Stage 1 完全一致
           ./auto/configure \
             --with-compat \
