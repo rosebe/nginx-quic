@@ -17,8 +17,11 @@ on:
       #- E* 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-  release:
-    types: [published]
+    inputs:
+      Upload_Binaries_To_Release:
+        description: 'Click here to upload binaries to release'
+        required: false
+        type: boolean
     
 # Set time zone
 env:
@@ -511,6 +514,7 @@ jobs:
         #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
         uses: svenstaro/upload-release-action@2.11.4
         #if: github.event_name == 'release'
+        if: github.event.inputs.Upload_Binaries_To_Release == 'true'
         with:
           repo_token: ${{ github.token }}          
           tag: ${{ env.TAG_NAME }}
