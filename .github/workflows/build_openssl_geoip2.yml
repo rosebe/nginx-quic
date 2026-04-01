@@ -57,6 +57,12 @@ jobs:
       #   go-version: ^1.20
       #   check-latest: true
   
+      - name: Set up GCC
+        uses: egor-tensin/setup-gcc@v1.3
+        with:
+         version: 15
+         platform: x64
+      
       - name: openssl
         run: |
           #git clone -b openssl-3.1.0+quic https://github.com/quictls/openssl.git
@@ -111,14 +117,7 @@ jobs:
           #git pull
           ./autogen.sh
           cd ..
-
-      - name: Set up GCC
-        uses: egor-tensin/setup-gcc@v1.3
-        with:
-         version: 15
-         platform: x64
-
-                    
+             
       - name: hg nginx-quic build
         run: |
           sudo apt-get -y install subversion-tools
