@@ -112,11 +112,11 @@ jobs:
           ./autogen.sh
           cd ..
 
-      #- name: Set up GCC
-        #uses: egor-tensin/setup-gcc@v1.3
-        #with:
-         #version: 12
-         #platform: x64
+      - name: Set up GCC
+        uses: egor-tensin/setup-gcc@v1.3
+        with:
+         version: 15
+         platform: x64
 
                     
       - name: hg nginx-quic build
