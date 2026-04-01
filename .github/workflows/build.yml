@@ -37,7 +37,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6
                               
       # Runs a set of commands using the runners shell
       - name: depend
@@ -111,14 +111,15 @@ jobs:
           ./autogen.sh
           cd ..
 
-      #- name: Set up GCC
-        #uses: egor-tensin/setup-gcc@v1.3
-        #with:
+      - name: Set up GCC
+        uses: egor-tensin/setup-gcc@v1.3
+        with:
          #version: 12
-         #platform: x64
+         version: 15
+         platform: x64
 
                     
-      - name: hg nginx-quic build
+      - name: nginx-quic build
         run: |
           sudo apt-get -y install subversion-tools
           # hg clone -b quic https://hg.nginx.org/nginx-quic
@@ -197,7 +198,7 @@ jobs:
          
           sudo make -j$(nproc --all)
           
-      - uses: actions/upload-artifact@v4.4.3
+      - uses: actions/upload-artifact@v7
         with:
           name: nginx-quic.Openssl
           path: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
@@ -271,7 +272,7 @@ jobs:
           
       - name: Upload binaries to release
         #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
-        uses: svenstaro/upload-release-action@2.11.2
+        uses: svenstaro/upload-release-action@2.11.5
         #if: github.event_name == 'release'
         with:
           repo_token: ${{ github.token }}          
