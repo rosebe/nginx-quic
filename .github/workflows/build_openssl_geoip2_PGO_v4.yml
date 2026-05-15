@@ -68,12 +68,14 @@ jobs:
         run: |
           #git clone -b openssl-3.1.0+quic https://github.com/quictls/openssl.git
           #git clone -b openssl-3.1.0+quic+locks https://github.com/quictls/openssl.git
-          git clone https://github.com/openssl/openssl.git
-          #git clone --recurse-submodules -b openssl-3.6 --depth 1 https://github.com/openssl/openssl.git
+          #git clone https://github.com/openssl/openssl.git
+          git clone --recurse-submodules -b openssl-4.0 --depth 1 https://github.com/openssl/openssl.git
           cd openssl
           git checkout .
           git pull
           git submodule update --init --recursive
+          echo "Openssl_Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
+          
           #mkdir build
           #cd build
           #../Configure
@@ -310,7 +312,7 @@ jobs:
             --add-module=../ngx_http_geoip2_module \
             --with-openssl=../openssl  \
             --with-openssl-opt='enable-ktls no-comp no-shared enable-tls1_3' \
-            --build="Commit ID: $(git rev-parse --short HEAD). Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v4 (AVX-512). And build on $(date +%Y_%m_%d-%H:%M:%S)" \
+            --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v4 (AVX-512). And build on $(date +%Y_%m_%d-%H:%M:%S)" \
             --with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
             --with-ld-opt='-static -flto=auto -fprofile-use -fprofile-dir=/tmp/pgo-data'
             
