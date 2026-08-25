@@ -286,5 +286,6 @@ jobs:
           asset_name: ${{ env.ASSET_NAME }}
           file: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
           body: "Happy play "
-          overwrite: true
+          overwrite: false  
+          #overwrite: true
           file_glob: false
