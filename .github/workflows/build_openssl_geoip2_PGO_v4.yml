@@ -74,8 +74,8 @@ jobs:
           #git checkout .
           #git pull
 
-          #git fetch --depth 1 origin dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
-          #git reset --hard dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
+          git fetch --depth 1 origin dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
+          git reset --hard dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
           
           git submodule update --init --recursive
           echo "Openssl_Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
