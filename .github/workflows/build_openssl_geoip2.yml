@@ -64,6 +64,8 @@ jobs:
          platform: x64
       
       - name: openssl
+        env: 
+          OPENSSL_COMMIT_ID_LOCAL : dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
         run: |
           #git clone -b openssl-3.1.0+quic https://github.com/quictls/openssl.git
           #git clone -b openssl-3.1.0+quic+locks https://github.com/quictls/openssl.git
@@ -73,8 +75,11 @@ jobs:
           #git checkout .
           #git pull
           
-          git fetch --depth 1 origin dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
-          git reset --hard dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
+          git fetch --depth 1 origin ${OPENSSL_COMMIT_ID_LOCAL}
+          git reset --hard ${OPENSSL_COMMIT_ID_LOCAL}
+
+          #git fetch --depth 1 origin dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
+          #git reset --hard dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
                     
           git submodule update --init --recursive
           echo "Openssl_Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
