@@ -64,7 +64,9 @@ jobs:
       
       - name: openssl
         env: 
-          OPENSSL_COMMIT_ID_LOCAL : dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
+          #OPENSSL_COMMIT_ID_LOCAL : dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
+
+          OPENSSL_COMMIT_ID_LOCAL : 27f097286cfa72354921610d9174724021aed97a
         run: |
           #git clone -b openssl-3.1.0+quic https://github.com/quictls/openssl.git
           #git clone -b openssl-3.1.0+quic+locks https://github.com/quictls/openssl.git
