@@ -365,7 +365,7 @@ jobs:
         id: step_one
         shell: bash
         run: |
-          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} Enable_OpenSSL and support ngx_http_geoip2_module PGO v4 build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} Enable_OpenSSL and support ngx_http_geoip2_module PGO v4 build on $(date +%Y_%m_%d-%H:%M:%S) test" >> $GITHUB_ENV
           echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
           echo "RELEASE_NAME=nginx-quic" v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')>> $GITHUB_ENV
           
@@ -445,5 +445,5 @@ jobs:
             - **Arch**: x86-64-v4 (AVX-512)
             - **Static**: All libraries linked statically.
             - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS.
-          overwrite: true
+          overwrite: false
           file_glob: false
