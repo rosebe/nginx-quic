@@ -323,6 +323,7 @@ jobs:
             --with-stream_ssl_module \
             --with-stream_ssl_preread_module \
             --add-module=../ngx_brotli \
+            --add-module=../zstd-nginx-module \
             --with-pcre=../pcre2 \
             --with-pcre-jit \
             --with-zlib=../zlib-cf \
