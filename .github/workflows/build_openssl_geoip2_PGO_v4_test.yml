@@ -257,30 +257,30 @@ jobs:
             
             # 临时调高系统文件描述符限制
             ulimit -n 65535 2>/dev/null || true
-            
+
             timeout 15 bash -c '
               RESULT_LOG=$(mktemp)
               FIFO_FILE=$(mktemp -u)
               mkfifo "$FIFO_FILE"
               exec 6<>"$FIFO_FILE"
               rm -f "$FIFO_FILE"
-            
-              # 2个令牌，限制2个并行 Worker 
+
+              # 2个令牌，限制2个并行 Worker
               for i in {1..2}; do echo >&6; done
-            
+
               clean_up() {
                 echo ">> 压测超时或结束，正在清理残留进程..."
                 exec 6>&- 2>/dev/null || true
                 pkill -P $$ openssl 2>/dev/null || true
               }
               trap clean_up SIGTERM SIGINT EXIT
-            
+
               echo "Running 12s test @ https://127.0.0.1:8443 (TLS SNI: example.com)"
               echo "  2 threads (simulated) and 200 concurrent connections"
               
               BENCH_START=$(date +%s.%N)
               DURATION_LIMIT=12.0
-            
+
               while true; do
                 CURRENT_TIME=$(date +%s.%N)
                 ELAPSED=$(echo "$CURRENT_TIME $BENCH_START" | awk "{print \$1 - \$2}")
@@ -288,7 +288,7 @@ jobs:
                 if (( $(echo "$ELAPSED >= $DURATION_LIMIT" | bc -l) )); then
                   break
                 fi
-            
+
                 current_batch_pids=()
                 
                 # 发起 200 并发连接
@@ -300,9 +300,9 @@ jobs:
                     STATUS=$?
                     REQ_END=$(date +%s.%N)
                     
-                    LATENCY=$(echo "$REQ_END $REQ_START" | awk "{print (\$1 - \$2) * 1000}")
-                    # 写入临时文件
-                    echo "\$LATENCY \$STATUS" >> "$RESULT_LOG"
+                    LATENCY=$(echo "$REQ_END $REQ_START" | awk "{print \$1 - \$2 * 1000}")
+                    # 此处仍处于 bash 双引号宏观作用域，需要对 $ 转义
+                    echo "$LATENCY $STATUS" >> "$RESULT_LOG"
                     
                     echo >&6
                   ) &
@@ -312,20 +312,20 @@ jobs:
                 wait "${current_batch_pids[@]}" 2>/dev/null || true
                 usleep 5000 2>/dev/null || sleep 0.005
               done
-            
+
               exec 6>&-
-            
+
               echo "--------------------------------------------------"
               echo ">> 压测结果反馈报告 (Stream TLS Handshake):"
               
-              # 核心修正：通过对 $ 进行严格转义 \\\$，确保 awk 能够正确读取日志列数据
+              # 核心修正：由于使用了 '\'' 隔离区，内部的 $1 和 $2 保持原生，去掉了错误的反斜杠
               awk -v duration="$DURATION_LIMIT" '\''
               BEGIN {
                 count = 0; success = 0; fail = 0; sum = 0; max = 0; min = 999999;
               }
               {
                 count++;
-                latency = \$1; status = \$2;
+                latency = $1; status = $2;
                 sum += latency;
                 if (latency > max) max = latency;
                 if (latency < min) min = latency;
@@ -343,7 +343,7 @@ jobs:
                 for (i = 1; i <= count; i++) sq_sum += (arr[i] - avg) ^ 2;
                 stdev = sqrt(sq_sum / count);
                 
-                # 冒泡排序
+                # 冒泡排序计算百分位数
                 for (i = 1; i <= count; i++) {
                   for (j = i + 1; j <= count; j++) {
                     if (arr[i] > arr[j]) { tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; }
@@ -355,7 +355,7 @@ jobs:
                 p90 = arr[int(count * 0.90) + 1];
                 p99 = arr[int(count * 0.99) + 1];
                 rps = count / duration;
-            
+
                 printf "  Thread Stats   Avg      Stdev     Max\n";
                 printf "    Latency    %.2fms    %.2fms    %.2fms\n", avg, stdev, max;
                 printf "  Latency Distribution\n";
@@ -368,13 +368,12 @@ jobs:
                 printf "Requests/sec:      %.2f\n", rps;
               }
               '\'' "$RESULT_LOG"
-            
+
               rm -f "$RESULT_LOG"
               trap - SIGTERM SIGINT EXIT
             ' || true
 
-
-            
+                       
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
             echo ">>  gRPC Stream 压测优化..."
             #ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
