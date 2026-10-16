@@ -252,17 +252,40 @@ jobs:
             #kill -0 $NGINX_PID || { cat /tmp/pgo-run/logs/stdout.log; exit 1; }
 
             # 6. [精准压测]
-            # A. Stream
-            for i in {1..30}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1 || true; done
-            # B. gRPC (增加容错，避免 502 导致 Action 中断)
-            echo ">> 训练 gRPC 逻辑..."
-            ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
-                --call helloworld.Greeter.SayHello -n 1000 127.0.0.1:8081 || true 
+            echo ">>  Stream 压测优化..."
+            # A. Stream 压测优化 (OpenSSL s_client)
+            #for i in {1..30}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1 || true; done
+            ## 使用 timeout 5 限制整个代码块，超时会发送 SIGTERM 信号终止内部所有未完成的后台进程
+            timeout 5 bash -c '
+            for i in {1..100}; do
+              (echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1 &)
+            done
+            wait   ## 等待所有后台握手结束
+            ' || true   ## 即使超时被强杀，也返回 true 避免 CI/CD 流程中断
 
+            
+            # B. gRPC (增加容错，避免 502 导致 Action 中断)
+            echo ">>  gRPC Stream 压测优化..."
+            #ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+            #    --call helloworld.Greeter.SayHello -n 1000 127.0.0.1:8081 || true
+            
+            # 优化方案：为了让 GCC 记录下高并发下的线程锁（Mutex）、内存分配（malloc/free）以及连接池复用逻辑，应当增加总请求量，并显式指定高并发数（-c）和持续时间（-z）。
+            # -c 100: 保持 100 个并发连接
+            # -n 20000: 提升到 2 万次请求，确保压测持续一定时间
+            # --timeout 2s: 避免慢请求卡住
+            ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+                --call helloworld.Greeter.SayHello \
+                -c 100 -n 20000 --timeout 2s 127.0.0.1:8081 || true 
 
             # C. HTTP/WS (指向 8081)
-            wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
+            echo ">>  HTTP/WebSocket 压测优化 ..."
+            #wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
+            
+            # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
+            # 这样可以让 CPU 满载，以便 GCC 精准捕捉热点函数
+            wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
 
+            
             # 7. [收割数据]
             echo ">> 正在触发 Profile 数据落盘..."
             [ -n "$NGINX_PID" ] && sudo kill -QUIT $NGINX_PID || true
