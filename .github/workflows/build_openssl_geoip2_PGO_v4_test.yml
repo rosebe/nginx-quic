@@ -300,7 +300,12 @@ jobs:
                   (
                     REQ_START=$(date +%s.%N)
                     # 使用 -ign_eof 完美配合 pgo.conf 的 8082 路由闭环
-                    echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet -ign_eof >/dev/null 2>&1
+                    #echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet -ign_eof >/dev/null 2>&1
+                    # （由于后端是自签名证书，openssl s_client 默认会因为证书校验失败而报警。
+                    # 我们需要在循环内部的 openssl 命令中注入 -noverify（针对较新版本）或不校验参数）
+                    # 将循环内部的 openssl 核心压测行替换为：
+                    echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet -ign_eof -noverify >/dev/null 2>&1
+
                     STATUS=$?
                     REQ_END=$(date +%s.%N)
                     
