@@ -266,8 +266,8 @@ jobs:
               exec 6<>"$FIFO_FILE"
               rm -f "$FIFO_FILE"
             
-              # 1. 【4 Threads 实现】：向管道中写入 4 个令牌，代表 4 个并行 Worker 线程
-              for i in {1..4}; do echo >&6; done
+              # 1. 【2 Threads 实现】：向管道中写入 2 个令牌，代表 2 个并行 Worker 线程
+              for i in {1..2}; do echo >&6; done
             
               clean_up() {
                 echo ">> 压测超时或结束，正在清理残留进程..."
