@@ -297,7 +297,10 @@ jobs:
                   (
                     REQ_START=$(date +%s.%N)
                     # 关键修正：使用 sudo 发起 openssl 绕过特权和防火墙拦截
-                    echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1
+                    # echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1
+                    # 将脚本中循环内部的 openssl 命令替换为：
+                    echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet -ign_eof >/dev/null 2>&1
+
                     STATUS=$?
                     REQ_END=$(date +%s.%N)
                     
