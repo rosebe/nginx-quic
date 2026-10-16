@@ -296,12 +296,13 @@ jobs:
                   read -u 6
                   (
                     REQ_START=$(date +%s.%N)
-                    echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1
+                    # 关键修正：使用 sudo 发起 openssl 绕过特权和防火墙拦截
+                    echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1
                     STATUS=$?
                     REQ_END=$(date +%s.%N)
                     
-                    LATENCY=$(echo "$REQ_END $REQ_START" | awk "{print \$1 - \$2 * 1000}")
-                    # 此处仍处于 bash 双引号宏观作用域，需要对 $ 转义
+                    # 关键修正：修正数学计算优先级，用括号强制先减后乘
+                    LATENCY=$(echo "$REQ_END $REQ_START" | awk "{print (\$1 - \$2) * 1000}")
                     echo "$LATENCY $STATUS" >> "$RESULT_LOG"
                     
                     echo >&6
@@ -318,7 +319,6 @@ jobs:
               echo "--------------------------------------------------"
               echo ">> 压测结果反馈报告 (Stream TLS Handshake):"
               
-              # 核心修正：由于使用了 '\'' 隔离区，内部的 $1 和 $2 保持原生，去掉了错误的反斜杠
               awk -v duration="$DURATION_LIMIT" '\''
               BEGIN {
                 count = 0; success = 0; fail = 0; sum = 0; max = 0; min = 999999;
@@ -372,7 +372,7 @@ jobs:
               rm -f "$RESULT_LOG"
               trap - SIGTERM SIGINT EXIT
             ' || true
-
+           
                        
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
             echo ">>  gRPC Stream 压测优化..."
