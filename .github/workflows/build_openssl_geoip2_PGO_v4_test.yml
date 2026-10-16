@@ -296,17 +296,13 @@ jobs:
                   read -u 6
                   (
                     REQ_START=$(date +%s.%N)
-                    # 关键修正：使用 sudo 发起 openssl 绕过特权和防火墙拦截
-                    # echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1
-                    # 将脚本中循环内部的 openssl 命令替换为：
+                    # 使用 -ign_eof 完美配合 pgo.conf 的 8082 路由闭环
                     echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet -ign_eof >/dev/null 2>&1
-
                     STATUS=$?
                     REQ_END=$(date +%s.%N)
                     
-                    # 关键修正：修正数学计算优先级，用括号强制先减后乘
-                    LATENCY=$(echo "$REQ_END $REQ_START" | awk "{print (\$1 - \$2) * 1000}")
-                    echo "$LATENCY $STATUS" >> "$RESULT_LOG"
+                    # 写入原始时间戳和状态码，将乘法和计算交给后续更安全的单通道处理
+                    echo "$REQ_START $REQ_END $STATUS" >> "$RESULT_LOG"
                     
                     echo >&6
                   ) &
@@ -322,6 +318,10 @@ jobs:
               echo "--------------------------------------------------"
               echo ">> 压测结果反馈报告 (Stream TLS Handshake):"
               
+              # 核心修正：利用系统的 sort -n 极速物理排序代替低效的 awk 冒泡，彻底消灭流水线假死 Bug
+              SORTED_LOG=$(mktemp)
+              awk '\''{ latency = ($2 - $1) * 1000; print latency, $3 }'\'' "$RESULT_LOG" | sort -n > "$SORTED_LOG"
+
               awk -v duration="$DURATION_LIMIT" '\''
               BEGIN {
                 count = 0; success = 0; fail = 0; sum = 0; max = 0; min = 999999;
@@ -329,10 +329,13 @@ jobs:
               {
                 count++;
                 latency = $1; status = $2;
+                
                 sum += latency;
                 if (latency > max) max = latency;
                 if (latency < min) min = latency;
                 if (status == 0) success++; else fail++;
+                
+                # 由于输入源已经经过物理排序，可以直接按索引精准提取百分位数
                 arr[count] = latency;
               }
               END {
@@ -346,13 +349,7 @@ jobs:
                 for (i = 1; i <= count; i++) sq_sum += (arr[i] - avg) ^ 2;
                 stdev = sqrt(sq_sum / count);
                 
-                # 冒泡排序计算百分位数
-                for (i = 1; i <= count; i++) {
-                  for (j = i + 1; j <= count; j++) {
-                    if (arr[i] > arr[j]) { tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; }
-                  }
-                }
-                
+                # 毫秒级直接提取百分位结果
                 p50 = arr[int(count * 0.50) + 1];
                 p75 = arr[int(count * 0.75) + 1];
                 p90 = arr[int(count * 0.90) + 1];
@@ -370,11 +367,12 @@ jobs:
                 printf "  Socket errors: connect %d, handshake_fail %d\n", fail, fail;
                 printf "Requests/sec:      %.2f\n", rps;
               }
-              '\'' "$RESULT_LOG"
+              '\'' "$SORTED_LOG"
 
-              rm -f "$RESULT_LOG"
+              rm -f "$RESULT_LOG" "$SORTED_LOG"
               trap - SIGTERM SIGINT EXIT
             ' || true
+
            
                        
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
