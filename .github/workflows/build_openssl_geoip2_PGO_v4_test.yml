@@ -277,7 +277,7 @@ jobs:
               trap clean_up SIGTERM SIGINT EXIT
             
               echo "Running 12s test @ https://127.0.0.1:8443 (TLS SNI: example.com)"
-              echo "  4 threads (simulated) and 200 concurrent connections"
+              echo "  2 threads (simulated) and 200 concurrent connections"
               
               BENCH_START=$(date +%s.%N)
               DURATION_LIMIT=12.0
