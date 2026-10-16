@@ -254,15 +254,9 @@ jobs:
             # 6. [精准压测]
             echo ">>  Stream 压测优化..."
             # A. Stream 压测优化 (OpenSSL s_client)
-            #for i in {1..30}; do echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1 || true; done
-            ## 使用 timeout 5 限制整个代码块，超时会发送 SIGTERM 信号终止内部所有未完成的后台进程
-            timeout 5 bash -c '
-            for i in {1..100}; do
-              (echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1 &)
-            done
-            wait   ## 等待所有后台握手结束
-            ' || true   ## 即使超时被强杀，也返回 true 避免 CI/CD 流程中断
-
+            # 短连接：高频触发 TLS 握手 (每一次请求都触发一次完整的 TLS 握手
+            # 压测 TLS 握手性能，而不是应用层吞吐量），你必须主动关闭 Keep-Alive。通过传入 Connection: close 请求头实现
+            wrk -t2 -c200 -d12s -H "Host: example.com" -H "Connection: close" --latency https://127.0.0.1:8443
             
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
             echo ">>  gRPC Stream 压测优化..."
@@ -283,7 +277,7 @@ jobs:
             
             # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
             # 这样可以让 CPU 满载，以便 GCC 精准捕捉热点函数
-            wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
+            wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" --latency http://127.0.0.1:8081
 
             
             # 7. [收割数据]
