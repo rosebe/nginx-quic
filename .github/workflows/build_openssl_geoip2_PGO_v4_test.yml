@@ -383,7 +383,7 @@ jobs:
             
               rm -f "$RESULT_LOG"
               trap - SIGTERM SIGINT EXIT
-' || true
+              ' || true
 
             
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
