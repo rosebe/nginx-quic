@@ -254,7 +254,7 @@ jobs:
             # 6. [精准压测]
             # A. Stream 压测优化 (OpenSSL s_client)
             echo ">>  Stream 压测优化 (使用 OpenSSL 触发 ssl_preread)..."
-
+            
             # 临时调高系统文件描述符限制
             ulimit -n 65535 2>/dev/null || true
             
@@ -262,27 +262,25 @@ jobs:
               RESULT_LOG=$(mktemp)
               FIFO_FILE=$(mktemp -u)
               mkfifo "$FIFO_FILE"
-              # 创建文件描述符 6 绑定到管道，并删除临时文件（保持管道在内存中）
               exec 6<>"$FIFO_FILE"
               rm -f "$FIFO_FILE"
             
-              # 1. 【2 Threads 实现】：向管道中写入 2 个令牌，代表 2 个并行 Worker 线程
-              for i in {1..2}; do echo >&6; done
+              # 4个令牌，限制4个并行 Worker 
+              for i in {1..4}; do echo >&6; done
             
               clean_up() {
                 echo ">> 压测超时或结束，正在清理残留进程..."
-                exec 6>&- # 关闭文件描述符
+                exec 6>&- 2>/dev/null || true
                 pkill -P $$ openssl 2>/dev/null || true
               }
               trap clean_up SIGTERM SIGINT EXIT
             
               echo "Running 12s test @ https://127.0.0.1:8443 (TLS SNI: example.com)"
-              echo "  2 threads (simulated) and 200 concurrent connections"
+              echo "  4 threads (simulated) and 200 concurrent connections"
               
               BENCH_START=$(date +%s.%N)
               DURATION_LIMIT=12.0
             
-              # 2. 【200 并发控制】：外层时间控制，内部并发交替
               while true; do
                 CURRENT_TIME=$(date +%s.%N)
                 ELAPSED=$(echo "$CURRENT_TIME $BENCH_START" | awk "{print \$1 - \$2}")
@@ -295,48 +293,39 @@ jobs:
                 
                 # 发起 200 并发连接
                 for i in {1..200}; do
-                  # 从管道中读取一个令牌（如果没有空闲线程，此处会阻塞等待）
                   read -u 6
-                  
                   (
-                    # 拿到令牌后，多线程 Worker 开始执行工作
                     REQ_START=$(date +%s.%N)
                     echo "QUIT" | openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet >/dev/null 2>&1
                     STATUS=$?
                     REQ_END=$(date +%s.%N)
                     
                     LATENCY=$(echo "$REQ_END $REQ_START" | awk "{print (\$1 - \$2) * 1000}")
-                    echo "$LATENCY $STATUS" >> "$RESULT_LOG"
+                    # 写入临时文件
+                    echo "\$LATENCY \$STATUS" >> "$RESULT_LOG"
                     
-                    # 任务完成后，归还令牌到管道，供下一个连接使用
                     echo >&6
                   ) &
                   current_batch_pids+=($!)
                 done
                 
-                # 等待这 200 个连接交替处理完毕
                 wait "${current_batch_pids[@]}" 2>/dev/null || true
-                
-                # 极短的间歇，防止本地 TCP 端口在 12 秒内过快枯竭
                 usleep 5000 2>/dev/null || sleep 0.005
               done
             
-              # 关闭管道描述符
               exec 6>&-
             
-              # ----------------------------------------------------
-              #  数据统计与高仿 wrk 报告输出
-              # ----------------------------------------------------
               echo "--------------------------------------------------"
               echo ">> 压测结果反馈报告 (Stream TLS Handshake):"
               
-              awk -v duration="$DURATION_LIMIT" '
+              # 核心修正：通过对 $ 进行严格转义 \\\$，确保 awk 能够正确读取日志列数据
+              awk -v duration="$DURATION_LIMIT" '\''
               BEGIN {
                 count = 0; success = 0; fail = 0; sum = 0; max = 0; min = 999999;
               }
               {
                 count++;
-                latency = $1; status = $2;
+                latency = \$1; status = \$2;
                 sum += latency;
                 if (latency > max) max = latency;
                 if (latency < min) min = latency;
@@ -346,16 +335,15 @@ jobs:
               END {
                 if (count == 0) {
                   print "  [错误] 未收集到压测数据，请确认 8443 端口是否正常监听！";
-                  exit;
+                  exit 1;
                 }
                 avg = sum / count;
                 
-                # 标准差计算
                 sq_sum = 0;
                 for (i = 1; i <= count; i++) sq_sum += (arr[i] - avg) ^ 2;
                 stdev = sqrt(sq_sum / count);
                 
-                # 百分位数排序
+                # 冒泡排序
                 for (i = 1; i <= count; i++) {
                   for (j = i + 1; j <= count; j++) {
                     if (arr[i] > arr[j]) { tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp; }
@@ -379,11 +367,12 @@ jobs:
                 printf "  Socket errors: connect %d, handshake_fail %d\n", fail, fail;
                 printf "Requests/sec:      %.2f\n", rps;
               }
-              ' "$RESULT_LOG"
+              '\'' "$RESULT_LOG"
             
               rm -f "$RESULT_LOG"
               trap - SIGTERM SIGINT EXIT
-              ' || true
+            ' || true
+
 
             
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
