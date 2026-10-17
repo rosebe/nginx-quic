@@ -200,9 +200,6 @@ jobs:
 
       - name: Stage 2 - Full Scenario Training (PGO)
         run: |
-            # 0. 生成 NGINX HTTPS 使用的证书
-            sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 -keyout /tmp/pgo-run/server.key -out /tmp/pgo-run/server.crt -subj "/CN=example.com"
-                        
             # 1. [变量拼接协议 - 防裁剪]
             G_RAW="https://raw.githubusercontent.com"
             G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
@@ -218,6 +215,12 @@ jobs:
             mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
             chmod -R 777 /tmp/pgo-run /tmp/pgo-data
 
+            # 2.1 [生成 NGINX HTTPS 使用的证书}
+            sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+                  -keyout /tmp/pgo-run/server.key \
+                  -out /tmp/pgo-run/server.crt \
+                  -subj "/CN=example.com"
+            
             # 3. [资源分发]
             cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
             cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
