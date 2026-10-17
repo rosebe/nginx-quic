@@ -399,7 +399,7 @@ jobs:
             # --timeout 2s: 避免慢请求卡住
             ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
                 --call helloworld.Greeter.SayHello \
-                -c 100 -n 30000 --timeout 2s 127.0.0.1:8081 || true 
+                -c 100 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
 
             # C. HTTP/WS (指向 8081)
             echo ">>  HTTP/WebSocket 压测优化 ..."
@@ -408,8 +408,16 @@ jobs:
             
             # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
             # 这样可以让 CPU 满载，以便 GCC 精准捕捉热点函数
-            wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" --latency http://127.0.0.1:8081
+            #wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" --latency http://127.0.0.1:8081
+            wrk -t2 -c200 -d12s --latency \
+                -H "Upgrade: websocket" \
+                -H "Connection: Upgrade" \
+                -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+                -H "Sec-WebSocket-Version: 13" \
+                 http://127.0.0.1:8081/ws
 
+            
+            
             
             # 7. [收割数据]
             echo ">> 正在触发 Profile 数据落盘..."
