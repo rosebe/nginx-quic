@@ -388,8 +388,10 @@ jobs:
                        
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
             echo ">>  gRPC Stream 压测优化..."
+            
             #ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
-            #    --call helloworld.Greeter.SayHello -n 1000 127.0.0.1:8081 || true
+            #    --call helloworld.Greeter.SayHello \
+            #    -n 1000 127.0.0.1:8081 || true
             
             # 优化方案：为了让 GCC 记录下高并发下的线程锁（Mutex）、内存分配（malloc/free）以及连接池复用逻辑，应当增加总请求量，并显式指定高并发数（-c）和持续时间（-z）。
             # -c 100: 保持 100 个并发连接
@@ -397,10 +399,11 @@ jobs:
             # --timeout 2s: 避免慢请求卡住
             ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
                 --call helloworld.Greeter.SayHello \
-                -c 100 -n 20000 --timeout 2s 127.0.0.1:8081 || true 
+                -c 100 -n 30000 --timeout 2s 127.0.0.1:8081 || true 
 
             # C. HTTP/WS (指向 8081)
             echo ">>  HTTP/WebSocket 压测优化 ..."
+           
             #wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
             
             # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
