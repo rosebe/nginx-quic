@@ -260,11 +260,12 @@ jobs:
             # 6. [精准压测]
             # A. Stream 压测优化
             echo ">>  Stream 压测优化..."
-            # 精准训练方案：让 wrk 发起 http 明文握手敲击 8443
-            wrk -t2 -c200 -d12s --latency \
+            # 精准训练方案：让 wrk 发起真正的 TLS 握手敲击 8443
+            # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练
+            wrk -t2 -c200 -d12s --latency --timeout 2s \
                 -H "Host: example.com" \
-                http://127.0.0.1:8443
-           
+                https://127.0.0.1:8443
+
            
                        
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
