@@ -287,14 +287,15 @@ jobs:
               BENCH_START=$(date +%s.%N)
               DURATION_LIMIT=12.0
 
-              while true; do
+               while true; do
                 CURRENT_TIME=$(date +%s.%N)
-                ELAPSED=$(echo "$CURRENT_TIME $BENCH_START" | awk "{print \$1 - \$2}")
+                # 核心修正 1：将双引号改为单引号，并在单引号中对 $ 符号进行正确脱敏，确保在 timeout bash -c 中完美解析
+                ELAPSED=$(echo "$CURRENT_TIME $BENCH_START" | awk '{print $1 - $2}')
                 
                 if (( $(echo "$ELAPSED >= $DURATION_LIMIT" | bc -l) )); then
                   break
                 fi
-
+              
                 current_batch_pids=()
                 
                 # 发起 200 并发连接
@@ -302,27 +303,29 @@ jobs:
                   read -u 6
                   (
                     REQ_START=$(date +%s.%N)
-                    # 使用 -ign_eof 完美配合 pgo.conf 的 8082 路由闭环
-                    #echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet -ign_eof >/dev/null 2>&1
-                    # （由于后端是自签名证书，openssl s_client 默认会因为证书校验失败而报警。
-                    # 我们需要在循环内部的 openssl 命令中注入 -noverify（针对较新版本）或不校验参数）
-                    # 将循环内部的 openssl 核心压测行替换为：
-                    echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet -ign_eof -noverify >/dev/null 2>&1
-
-                    STATUS=$?
+                    
+                    # 核心修正 2：利用简洁的 grep 管道直接捕获成功状态，既不堵塞缓冲区，又能完美过滤 0 或 1
+                    if echo "QUIT" | sudo openssl s_client -connect 127.0.0.1:8443 -servername example.com -quiet -ign_eof -noverify 2>&1 | grep -q "stream_backend_ok"; then
+                      STATUS=0
+                    else
+                      STATUS=1
+                    fi
+                    
                     REQ_END=$(date +%s.%N)
                     
-                    # 写入原始时间戳和状态码，将乘法和计算交给后续更安全的单通道处理
+                    # 写入原始时间戳和状态码
                     echo "$REQ_START $REQ_END $STATUS" >> "$RESULT_LOG"
                     
                     echo >&6
                   ) &
+              
                   current_batch_pids+=($!)
                 done
                 
                 wait "${current_batch_pids[@]}" 2>/dev/null || true
                 usleep 5000 2>/dev/null || sleep 0.005
               done
+
 
               exec 6>&-
 
