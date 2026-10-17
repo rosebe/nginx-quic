@@ -210,7 +210,7 @@ jobs:
             G_WORKSPACE="${{ github.workspace }}"
 
             # 2. [环境整备]
-            sudo apt-get update && sudo apt-get install -y wrk openssl
+            sudo apt-get update && sudo apt-get install -y wrk openssl bc
             rm -rf /tmp/pgo-run /tmp/pgo-data
             mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
             chmod -R 777 /tmp/pgo-run /tmp/pgo-data
