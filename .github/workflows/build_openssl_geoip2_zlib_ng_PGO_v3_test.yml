@@ -560,8 +560,8 @@ jobs:
             # 2. [环境整备]
             #rm -rf /tmp/pgo-run /tmp/pgo-data
             #rm -rf /tmp/pgo-data/*
-            mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
-            chmod -R 777 /tmp/pgo-run /tmp/pgo-data
+            #mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
+            #chmod -R 777 /tmp/pgo-run /tmp/pgo-data
 
             # 2.1 [生成 NGINX HTTPS 使用的证书}
             sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
