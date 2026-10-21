@@ -1,0 +1,613 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build nginx-quit with Compiler-GCC and geoip2. zlib-ng. PGO (Profile Guided Optimization) enabled. v3 (test)
+
+# Controls when the action will run. 
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  #push:
+    #branches:
+      #- main
+      #- b*
+      #- E*
+  #pull_request:
+    #branches:
+      #- main
+      #- b*
+      #- E* 
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  release:
+    types: [published]
+    
+# Set time zone
+env:
+  TZ: Asia/Shanghai
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    #runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    
+    if: github.event.repository.owner.id == github.event.sender.id
+    
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v7
+                              
+      # Runs a set of commands using the runners shell
+      - name: depend
+        run: |
+          sudo apt-get update
+          sudo apt-get upgrade
+          sudo apt-get install build-essential ca-certificates \
+                               zlib1g-dev libssl-dev \
+                               git cmake ninja-build gnupg2 lsb-release libunwind-dev \
+                               tar unzip  wget curl tree perl-base
+          sudo add-apt-repository ppa:maxmind/ppa
+          sudo apt install libmaxminddb0 libmaxminddb-dev mmdb-bin
+          sudo apt-get install -y libtool automake autoconf wrk golang-go bc
+          # 确保静态编译依赖完全就绪
+          sudo apt-get install -y libc6-dev glibc-source
+          
+
+      #- name: Setup Go environment
+      #  uses: actions/setup-go@v4.0.1
+      #  with:
+      #   go-version: ^1.20
+      #   check-latest: true
+  
+      - name: Set up GCC
+        uses: egor-tensin/setup-gcc@v2
+        with:
+         version: 16
+         platform: x64
+      
+      - name: openssl
+        env: 
+          #OPENSSL_COMMIT_ID_LOCAL : dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
+          
+          OPENSSL_COMMIT_ID_LOCAL : ae24bfbd40e10b923bb9a7df7106d0d398201b69
+        run: |
+          #git clone -b openssl-3.1.0+quic https://github.com/quictls/openssl.git
+          #git clone -b openssl-3.1.0+quic+locks https://github.com/quictls/openssl.git
+          #git clone https://github.com/openssl/openssl.git
+          
+          git clone --recurse-submodules -b openssl-4.1 --depth 1 https://github.com/openssl/openssl.git
+          cd openssl
+          
+          #git checkout .
+          #git pull
+
+          #git fetch --depth 1 origin ${OPENSSL_COMMIT_ID_LOCAL}
+          #git reset --hard ${OPENSSL_COMMIT_ID_LOCAL}
+          
+          ##git fetch --depth 1 origin dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
+          ##git reset --hard dcc2a2dcd4120543aa8a967e26dcd5dba20053d1
+          
+          git submodule update --init --recursive
+          echo "Openssl_Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
+          
+          #mkdir build
+          #cd build
+          #../Configure
+          #sudo make -j$(nproc --all)
+          #sudo make install
+          #sudo ldconfig /usr/local/lib64/
+          #openssl version -d
+          
+          cd ..
+                      
+      - name: brotli
+        run: |
+          git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli
+          cd ngx_brotli/deps/brotli
+          mkdir out && cd out
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_CXX_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_INSTALL_PREFIX=./installed ..
+          cmake --build . --config Release --target brotlienc
+          cd ../../../..
+          
+      - name: zlib-cf
+        run: |
+          git clone -b gcc.amd64  https://github.com/cloudflare/zlib.git zlib-cf
+          cd zlib-cf
+          make -f Makefile.in distclean
+          git checkout .
+          git pull
+          git submodule update --init --recursive
+          cd ..
+    
+      
+      - name: zlib-ng [Pre-configure zlib-ng]
+        #env:
+          #CC: musl-gcc
+          #CXX: musl-g++
+        run: |
+          #git clone --branch develop https://github.com/zlib-ng/zlib-ng.git
+          git clone https://github.com/zlib-ng/zlib-ng.git
+          cd zlib-ng 
+          
+          # 核心注入：修改默认配置，强行将原生 API 切换为 zlib 1.x 兼容接口
+          #sed -i 's/compat=0/compat=1/g' configure
+          
+          # 核心注入：必须开启兼容模式，且伪装成原生配置脚本
+          #./configure --zlib-compat
+          # 核心修复：指定绝对安装路径，开启静态与兼容模式
+          ./configure --static --zlib-compat --prefix=/tmp/zlib-ng
+          
+          #make -j$(nproc --all) libz.a
+          make -j$(nproc --all)
+          # 必须执行 install，将文件规范化输出到 /tmp/zlib-ng
+          make install  # 必须执行 install，将文件规范化输出到 /tmp/zlib-ng
+          cd ..
+          
+          #...
+          #auto/configure --with-cc-opt=-I/path/zlib-ng/include --with-ld-opt=-L/path/zlib-ng/lib
+      
+      - name: zstd 
+        run: |
+          git clone https://github.com/tokers/zstd-nginx-module.git
+          #cd zlib-cf
+          #cd ..
+      
+      - name: GeoLite2
+        run: |
+          git clone https://github.com/leev/ngx_http_geoip2_module.git
+          cd ngx_http_geoip2_module
+          git checkout .
+          git pull
+          cd ..
+      
+      - name: pcre2
+        run: |
+          git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
+          cd pcre2
+          #git checkout .
+          #git pull
+          ./autogen.sh
+          cd ..
+           
+      # --- 第一阶段：插桩编译 (Instrument Build) ---
+      - name: Stage 1 - Instrument Build
+        run: |
+          git clone https://github.com/nginx/nginx.git
+          cd nginx
+               
+          echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
+          
+          curl https://raw.githubusercontent.com/rosebe/nginx-quit/refs/heads/main/nginx_dynamic_tls_records.patch | patch --verbose -p 1
+          
+          # 1. 彻底清理残留
+          rm -rf objs/
+          rm -rf /tmp/pgo-run /tmp/pgo-data
+          rm -rf /tmp/pgo-data/*
+          mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
+          chmod -R 777 /tmp/pgo-run /tmp/pgo-data
+
+          # 确保编译期间环境变量是干净的
+          unset GCOV_PREFIX
+          unset GCOV_PREFIX_STRIP
+         
+          
+          ./auto/configure \
+            --prefix=/etc/nginx \
+            --sbin-path=/usr/sbin/nginx \
+            --modules-path=/usr/lib64/nginx/modules \
+            --conf-path=/etc/nginx/nginx.conf \
+            --error-log-path=/var/log/nginx/error.log \
+            --http-log-path=/var/log/nginx/access.log \
+            --pid-path=/var/run/nginx.pid \
+            --lock-path=/var/run/nginx.lock \
+            --http-client-body-temp-path=/var/cache/nginx/client_temp \
+            --http-proxy-temp-path=/var/cache/nginx/proxy_temp \
+            --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
+            --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp \
+            --http-scgi-temp-path=/var/cache/nginx/scgi_temp \
+            --user=nginx \
+            --group=nginx \
+            --with-compat \
+            --with-file-aio \
+            --with-threads \
+            --with-http_addition_module \
+            --with-http_auth_request_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_mp4_module \
+            --with-http_random_index_module \
+            --with-http_realip_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_ssl_module \
+            --with-http_stub_status_module \
+            --with-http_sub_module \
+            --with-http_v2_module \
+            --with-mail \
+            --with-mail_ssl_module \
+            --with-stream \
+            --with-stream_realip_module \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --add-module=../zstd-nginx-module \
+            --add-module=../ngx_brotli \
+            --with-pcre=../pcre2 \
+            --with-pcre-jit \
+            --with-http_v3_module \
+            --add-module=../ngx_http_geoip2_module \
+            --with-openssl=../openssl  \
+            --with-openssl-opt='no-comp no-shared enable-tls1_3' \
+            --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
+            --with-cc-opt='-I/tmp/zlib-ng/include -O3 -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
+            --with-ld-opt='-L/tmp/zlib-ng/lib -flto=auto -fprofile-generate=/tmp/pgo-data'
+
+            #--with-cc-opt='-static -static-libgcc -O3 -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
+            #--with-ld-opt='-static -flto=auto -fprofile-generate=/tmp/pgo-data'
+
+          
+          make -j$(nproc)
+          cd ..
+
+      - name: Stage 2 - Full Scenario Training (PGO)
+        run: |
+            # 1. [变量拼接协议 - 防裁剪]
+            G_RAW="https://raw.githubusercontent.com"
+            G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
+            G_HOST="https://github.com"
+            G_REPO="/grpc/grpc-go.git"
+            
+            #NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+            
+            NGINX_BIN="/home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx"
+            G_WORKSPACE="${{ github.workspace }}"
+
+            # 2. [环境整备]
+            sudo apt-get update && sudo apt-get install -y wrk openssl bc
+            rm -rf /tmp/pgo-run /tmp/pgo-data
+            rm -rf /tmp/pgo-data/*
+            mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
+            chmod -R 777 /tmp/pgo-run /tmp/pgo-data
+
+            # 2.1 [生成 NGINX HTTPS 使用的证书}
+            sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+                  -keyout /tmp/pgo-run/server.key \
+                  -out /tmp/pgo-run/server.crt \
+                  -subj "/CN=example.com"
+            
+            # 3. [资源分发]
+            cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
+            cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+            curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/pgo-run/proto/helloworld.proto
+
+            go install "github.com/bojand/ghz/cmd/ghz@latest"
+            export PATH=$PATH:$(go env GOPATH)/bin
+
+            # --- [启动 gRPC 桩服务] ---
+            git clone --depth 1 "${G_HOST}${G_REPO}"
+            cd grpc-go/examples/helloworld/greeter_server
+            go run main.go > /tmp/grpc-backend.log 2>&1 &
+            BACKEND_PID=$!
+            cd -
+
+            # [重要：等待 gRPC 后端就绪]
+            echo ">> 等待 gRPC 后端 (50051) 就绪..."
+            timeout 30s bash -c 'until nc -z localhost 50051; do sleep 1; done' || echo "⚠️ gRPC 后端启动超时"
+           
+
+            # 检测配置文件
+            sudo chmod +x /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx
+            #sudo /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx -V
+            #sudo /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx -t -c /tmp/pgo-run/pgo.conf
+            
+            # ==========================================
+            # 5. [插桩启动 - 强力覆盖全局指令以规避环境冲突崩溃]
+            # ==========================================
+            echo ">> 正在全面清理并放开 PGO 数据目录权限..."
+            sudo rm -rf /tmp/pgo-data/*
+            sudo chmod -R 777 /tmp/pgo-data /tmp/pgo-run
+            
+            # 创建系统兜底用户，防止 Nginx 核心加载由于残留硬编码触发异常
+            sudo useradd -M -s /usr/sbin/nologin nginx 2>/dev/null || true
+            
+            echo ">> 校验 Nginx 配置文件语法 (强行注入 user root 防闪退)..."
+            # 💡 关键点 1：通过 -g 注入 'user root;' 彻底根除 getpwnam("nginx") failed 报错
+            T_LOG=$(sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf -g "user root;" 2>&1 || true)
+            echo "$T_LOG"
+            
+            if ! echo "$T_LOG" | grep -q "syntax is ok"; then
+                echo "❌ Nginx 配置文件语法或路径确实存在配置错误！"
+                exit 1
+            else
+                echo "⚠️ 语法校验成功通过。"
+            fi
+            
+            # 正式压测前，再次深度重置数据目录
+            sudo rm -rf /tmp/pgo-data/*
+            
+            echo ">> 正式拉起插桩版 Nginx (通过三合一全局指令覆盖底层执行状态)..."
+            # 💡 关键点 2：三合一强力覆盖指令
+            # - user root;: 绕过配置文件缺失 nginx 用户的系统报错
+            # - daemon off;: 让 Nginx 在前台运行以被当前后台拦截器截获日志
+            # - master_process off; worker_processes 1;: 强行将 worker 降级为单进程，彻底解决 libgcov 退出时的段错误
+            
+            #sudo -E env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=3 \
+            #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #    -g "user root; daemon off; master_process off; worker_processes 1;" > /tmp/nginx-start.log 2>&1 &
+            
+            #sudo -E env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=3 \
+            #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #    -g "user root; daemon off; master_process off; worker_processes auto;" > /tmp/nginx-start.log 2>&1 &
+            
+            #sudo -E env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=3 \
+            #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #    -g "user root; daemon off; worker_processes auto;" > /tmp/nginx-start.log 2>&1 &
+
+            sudo -E env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=0 \
+                "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf > /tmp/nginx-start.log 2>&1 &
+            
+            # 动态获取真正运行的 Nginx 进程 PID
+            sleep 4
+            NGINX_PID=$(pgrep -f "/tmp/pgo-run/pgo.conf" | head -n 1 || true)
+            
+            if [ -n "$NGINX_PID" ]; then
+                echo ">> ✅ Nginx 成功拉起，运行 PID: $NGINX_PID"
+            else
+                echo "❌ Nginx 正式启动失败，未捕获到进程！崩溃日志如下："
+                cat /tmp/nginx-start.log
+                exit 1
+            fi
+            
+            # 闪退守卫
+            if ! kill -0 "$NGINX_PID" 2>/dev/null; then
+                echo "❌ Nginx 刚拉起就在后台闪退了！崩溃日志如下："
+                cat /tmp/nginx-start.log
+                exit 1
+            fi
+
+            # Nginx 配置文件
+            echo ">> ✅ Nginx 配置文件... "
+            #sudo "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #         -g "user root; daemon off; worker_processes auto;" \
+            #         -T 
+            
+            sudo "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf -T
+            echo "✅ Nginx 配置文件结束"         
+
+
+            # 6. [精准压测]
+            # A. Stream 压测优化
+            echo ">>  Stream 压测优化..."
+            # 精准训练方案：让 wrk 发起真正的 TLS 握手敲击 8443
+            # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练
+            wrk -t2 -c200 -d12s --latency --timeout 2s \
+                -H "Host: example.com" \
+                https://127.0.0.1:8443
+
+           
+                       
+            # B. gRPC (增加容错，避免 502 导致 Action 中断)
+            echo ">>  gRPC Stream 压测优化..."
+            
+            #ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+            #    --call helloworld.Greeter.SayHello \
+            #    -n 1000 127.0.0.1:8081 || true
+            
+            # 优化方案：为了让 GCC 记录下高并发下的线程锁（Mutex）、内存分配（malloc/free）以及连接池复用逻辑，应当增加总请求量，并显式指定高并发数（-c）和持续时间（-z）。
+            # -c 100: 保持 100 个并发连接
+            # -n 20000: 提升到 2 万次请求，确保压测持续一定时间
+            # --timeout 2s: 避免慢请求卡住
+            ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+                --call helloworld.Greeter.SayHello \
+                -c 100 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
+
+            # C. HTTP/WS (指向 8081)
+            echo ">>  HTTP/WebSocket 压测优化 ..."
+           
+            #wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
+            
+            # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
+            # 这样可以让 CPU 满载，以便 GCC 精准捕捉热点函数
+            #wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" --latency http://127.0.0.1:8081
+            wrk -t2 -c200 -d12s --latency \
+                -H "Upgrade: websocket" \
+                -H "Connection: Upgrade" \
+                -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+                -H "Sec-WebSocket-Version: 13" \
+                 http://127.0.0.1:8081/ws
+
+            
+            # D： 强力训练 HTTP 模块的 TLS 解密与证书处理逻辑
+            # ==================================================
+            echo ">> 正在强力训练 HTTP 模块的 TLS/HTTPS 状态机 压测优化..."
+            # 使用 wrk 直接压测 8082 端口，由于走的是标准的 HTTPS，Nginx 的 TLS 握手、解密、ASN1 别名解析等核心热点代码将被完全灌满！
+            wrk -t2 -c100 -d5s --latency https://127.0.0.1:8082
+
+            
+            
+            
+            # 7. [收割数据]
+            echo ">> 正在触发 Profile 数据落盘..."
+            [ -n "$NGINX_PID" ] && sudo kill -QUIT $NGINX_PID || true
+            [ -n "$BACKEND_PID" ] && kill $BACKEND_PID || true
+            sleep 10
+            
+            echo ">> 最终统计成果："
+            find /tmp/pgo-data -name "*.gcda" | wc -l
+
+
+
+      
+      # --- 第三阶段：最终极致编译 (Final Optimization) ---
+      - name: Stage 3 - Final Build
+        run: |
+          cd nginx
+          #make clean
+          rm -rf /home/runner/work/nginx-quit/nginx-quit/nginx/objs
+          
+          ./auto/configure \
+            --prefix=/etc/nginx \
+            --sbin-path=/usr/sbin/nginx \
+            --modules-path=/usr/lib64/nginx/modules \
+            --conf-path=/etc/nginx/nginx.conf \
+            --error-log-path=/var/log/nginx/error.log \
+            --http-log-path=/var/log/nginx/access.log \
+            --pid-path=/var/run/nginx.pid \
+            --lock-path=/var/run/nginx.lock \
+            --http-client-body-temp-path=/var/cache/nginx/client_temp \
+            --http-proxy-temp-path=/var/cache/nginx/proxy_temp \
+            --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
+            --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp \
+            --http-scgi-temp-path=/var/cache/nginx/scgi_temp \
+            --user=nginx \
+            --group=nginx \
+            --with-compat \
+            --with-file-aio \
+            --with-threads \
+            --with-http_addition_module \
+            --with-http_auth_request_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_mp4_module \
+            --with-http_random_index_module \
+            --with-http_realip_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_ssl_module \
+            --with-http_stub_status_module \
+            --with-http_sub_module \
+            --with-http_v2_module \
+            --with-mail \
+            --with-mail_ssl_module \
+            --with-stream \
+            --with-stream_realip_module \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --add-module=../zstd-nginx-module \
+            --add-module=../ngx_brotli \
+            --with-pcre=../pcre2 \
+            --with-pcre-jit \
+            --with-http_v3_module \
+            --add-module=../ngx_http_geoip2_module \
+            --with-openssl=../openssl  \
+            --with-openssl-opt='no-comp no-shared enable-tls1_3' \
+            --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v3. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
+            --with-cc-opt='-static -I/tmp/zlib-ng/include -static-libgcc -O3 -march=x86-64-v3 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
+            --with-ld-opt='-static -L/tmp/zlib-ng/lib -flto=auto -fprofile-use -fprofile-dir=/tmp/pgo-data'
+                        
+            
+            #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
+            # 在现代 GCC（GCC 9+）中，当使用了 -fprofile-use 时，如果您显式指定了路径，标准的参数语法是 -fprofile-dir。但是在有些发行版的 GCC 版本上，配合 -fprofile-use 的规范写法推荐写成
+            #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction' \
+            #--with-ld-opt='-static -flto=auto -fprofile-use=/tmp/pgo-data' 
+            
+          
+          make -j$(nproc)
+          
+          # 使用 -B 强制重新编译所有目标，但不会执行删除动作
+          #make -j$(nproc) -B
+          
+          # 在 Stage 3 结尾添加
+          ls -lh objs/nginx
+          file objs/nginx     # 确认是否为 statically linked
+          ldd objs/nginx || true  # 确认是否报 'not a dynamic executable' (代表静态链接成功)
+      
+          
+      - name: Strip and Package
+        run: |
+          # 1. 瘦身：去除调试符号，文件将从 19M 通常能缩减到 5-8M 左右
+          strip --strip-all /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx
+          # 验证优化后的最终体积        
+          ls -lh /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx
+                  
+          # 归档上传
+          # tar -czvf nginx-pgo-v4-static.tar.gz -C nginx/objs nginx
+
+      - name: Verify
+        run: |
+          # 验证是否为静态链接
+          # 验证生成的二进制文件是否为“纯静态”
+          echo "==== 验证二进制文件状态 ===="
+          #chmod +x /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx
+          file /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx
+          ldd /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx || echo "Static binary confirmed"    
+            
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nginx-quit.Openssl
+          path: /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx
+      
+        # Setting an environment variable
+        # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
+      
+      - name: Set variables
+        id: step_one
+        shell: bash
+        run: |
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quit/nginx-quit/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} with-Compiler-gcc zlib-ng pgo v3 test build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quit/nginx-quit/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=nginx-quit v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quit/nginx-quit/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          
+          echo "TAG_NAME: "
+          echo "${{ env.TAG_NAME }}"
+          echo ""
+          echo "RELEASE_NAME: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo ""
+          echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
+          echo ""
+          echo "GITHUB_ENV 1: "$GITHUB_ENV
+          echo "GITHUB_ENV 2: ${GITHUB_ENV} "       
+                  
+      - name: Use variables
+        id: step_two
+        shell: bash
+        run: |
+          echo "ASSET_NAME: "
+          echo "${{ env.ASSET_NAME }}"
+          echo ""
+          echo "TAG_NAME: "
+          echo "${{ env.TAG_NAME }}"
+          echo ""
+          echo "RELEASE_NAME: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo ""
+          echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
+          echo ""
+          echo "GITHUB_ENV 1: "$GITHUB_ENV
+          echo "GITHUB_ENV 2: ${GITHUB_ENV} "
+          echo ""
+          echo "GITHUB_EVENT_NAME is:" $github.event_name
+          
+          echo "$(tree -d)"
+          
+      - name: Upload binaries to release
+        #uses: svenstaro/upload-release-action@e2a63377780a8bacc68dcac9b0979ee20ad5a791
+        uses: svenstaro/upload-release-action@2.11.5
+        #if: github.event_name == 'release'
+        with:
+          repo_token: ${{ github.token }}          
+          tag: ${{ env.TAG_NAME }}
+          release_name: ${{ env.RELEASE_NAME }}
+          asset_name: ${{ env.ASSET_NAME }}
+          file: /home/runner/work/nginx-quit/nginx-quit/nginx/objs/nginx
+          body: "### Happy play for CentOS 6.X
+
+                - [ ] compile (-static)
+                
+                `>  ldd nginx-quit-static.v1.xx.x.build.on.202x_x_x-x.x.x` 
+                
+                `>  not a dynamic executable`
+
+                - [ ] nginx configer 
+                
+                `>  nginx -V`"
+                
+          overwrite: false
+          file_glob: false
+          
