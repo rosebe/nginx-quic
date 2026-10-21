@@ -521,7 +521,7 @@ jobs:
           ls -lh objs/nginx
           file objs/nginx     # 确认是否为 statically linked
           ldd objs/nginx || true  # 确认是否报 'not a dynamic executable' (代表静态链接成功)
-      
+          cd ..
           
       - name: Strip and Package
         run: |
@@ -542,6 +542,185 @@ jobs:
           file /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
           ldd /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx || echo "Static binary confirmed"    
             
+      
+      
+      - name: Stage 4 - Comprehensive Stress Testing
+        run: |
+            # 1. [变量拼接协议 - 防裁剪]
+            G_RAW="https://raw.githubusercontent.com"
+            G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
+            G_HOST="https://github.com"
+            G_REPO="/grpc/grpc-go.git"
+            
+            #NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+            
+            NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+            G_WORKSPACE="${{ github.workspace }}"
+
+            # 2. [环境整备]
+            rm -rf /tmp/pgo-run /tmp/pgo-data
+            rm -rf /tmp/pgo-data/*
+            mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
+            chmod -R 777 /tmp/pgo-run /tmp/pgo-data
+
+            # 2.1 [生成 NGINX HTTPS 使用的证书}
+            sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+                  -keyout /tmp/pgo-run/server.key \
+                  -out /tmp/pgo-run/server.crt \
+                  -subj "/CN=example.com"
+            
+            # 3. [资源分发]
+            cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
+            cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+            curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/pgo-run/proto/helloworld.proto
+
+            go install "github.com/bojand/ghz/cmd/ghz@latest"
+            export PATH=$PATH:$(go env GOPATH)/bin
+            # --- [启动 gRPC 桩服务] ---
+            git clone --depth 1 "${G_HOST}${G_REPO}"
+            cd grpc-go/examples/helloworld/greeter_server
+            go run main.go > /tmp/grpc-backend.log 2>&1 &
+            BACKEND_PID=$!
+            cd -
+
+            # [重要：等待 gRPC 后端就绪]
+            echo ">> 等待 gRPC 后端 (50051) 就绪..."
+            timeout 30s bash -c 'until nc -z localhost 50051; do sleep 1; done' || echo "⚠️ gRPC 后端启动超时"
+           
+
+            # 检测配置文件
+            sudo chmod +x /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+            #sudo /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -V
+            #sudo /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -t -c /tmp/pgo-run/pgo.conf
+            
+            # ==========================================
+            # 5. [插桩启动 - 强力覆盖全局指令以规避环境冲突崩溃]
+            # ==========================================
+            echo ">> 正在全面清理并放开 PGO 数据目录权限..."
+            sudo rm -rf /tmp/pgo-data/*
+            sudo chmod -R 777 /tmp/pgo-data /tmp/pgo-run
+            
+            # 创建系统兜底用户，防止 Nginx 核心加载由于残留硬编码触发异常
+            sudo useradd -M -s /usr/sbin/nologin nginx 2>/dev/null || true
+            
+            echo ">> 校验 Nginx 配置文件语法 (删除 注入 user root 防闪退)..."
+            # 💡 关键点 1：通过 -g 注入 'user root;' 彻底根除 getpwnam("nginx") failed 报错
+            ##T_LOG=$(sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf -g "user root;" 2>&1 || true)
+            T_LOG=$(sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf 2>&1 || true)
+            
+            # 强行打印 NGINX 输出的原始错误，防止被吃掉
+            echo "=== NGINX TEST OUTPUT BEGIN ==="
+            echo "$T_LOG"
+            echo "=== NGINX TEST OUTPUT END ==="
+            
+            if ! echo "$T_LOG" | grep -q "syntax is ok"; then
+                echo "❌ Nginx 配置文件语法或路径确实存在配置错误！"
+                exit 1
+            else
+                echo "⚠️ 语法校验成功通过。"
+            fi
+            
+            # 正式压测前，再次深度重置数据目录
+            sudo rm -rf /tmp/pgo-data/*
+            
+            echo ">> 正式拉起插桩版 Nginx (通过三合一全局指令覆盖底层执行状态)..."
+            # 💡 关键点 2：三合一强力覆盖指令
+            # - user root;: 绕过配置文件缺失 nginx 用户的系统报错
+            # - daemon off;: 让 Nginx 在前台运行以被当前后台拦截器截获日志
+            # - master_process off; worker_processes 1;: 强行将 worker 降级为单进程，彻底解决 libgcov 退出时的段错误
+            
+            #sudo -E env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=3 \
+            #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #    -g "user root; daemon off; master_process off; worker_processes 1;" > /tmp/nginx-start.log 2>&1 &
+            
+            #sudo -E env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=3 \
+            #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #    -g "user root; daemon off; master_process off; worker_processes auto;" > /tmp/nginx-start.log 2>&1 &
+            
+            #sudo -E env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=3 \
+            #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #    -g "user root; daemon off; worker_processes auto;" > /tmp/nginx-start.log 2>&1 &
+
+            sudo -E env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=0 \
+                "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf > /tmp/nginx-start.log 2>&1 &
+            
+            # 动态获取真正运行的 Nginx 进程 PID
+            sleep 4
+            NGINX_PID=$(pgrep -f "/tmp/pgo-run/pgo.conf" | head -n 1 || true)
+            
+            if [ -n "$NGINX_PID" ]; then
+                echo ">> ✅ Nginx 成功拉起，运行 PID: $NGINX_PID"
+            else
+                echo "❌ Nginx 正式启动失败，未捕获到进程！崩溃日志如下："
+                cat /tmp/nginx-start.log
+                exit 1
+            fi
+            
+            # 闪退守卫
+            if ! kill -0 "$NGINX_PID" 2>/dev/null; then
+                echo "❌ Nginx 刚拉起就在后台闪退了！崩溃日志如下："
+                cat /tmp/nginx-start.log
+                exit 1
+            fi
+
+            # Nginx 配置文件
+            echo ">> ✅ Nginx 配置文件... "
+            #sudo "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #         -g "user root; daemon off; worker_processes auto;" \
+            #         -T 
+            
+            sudo "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf -T
+            echo "✅ Nginx 配置文件结束"         
+
+
+            # 6. [精准压测]
+            # A. Stream 压测优化
+            echo ">>  🚀 Stream 压测优化..."
+            # 精准训练方案：让 wrk 发起真正的 TLS 握手敲击 8443
+            # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练
+            wrk -t2 -c200 -d12s --latency --timeout 2s \
+                -H "Host: example.com" \
+                https://127.0.0.1:8443
+
+           
+                       
+            # B. gRPC (增加容错，避免 502 导致 Action 中断)
+            echo ">>  🚀 gRPC Stream 压测优化..."
+            
+            #ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+            #    --call helloworld.Greeter.SayHello \
+            #    -n 1000 127.0.0.1:8081 || true
+            
+            # 优化方案：为了让 GCC 记录下高并发下的线程锁（Mutex）、内存分配（malloc/free）以及连接池复用逻辑，应当增加总请求量，并显式指定高并发数（-c）和持续时间（-z）。
+            # -c 100: 保持 100 个并发连接
+            # -n 20000: 提升到 2 万次请求，确保压测持续一定时间
+            # --timeout 2s: 避免慢请求卡住
+            ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+                --call helloworld.Greeter.SayHello \
+                -c 100 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
+
+            # C. HTTP/WS (指向 8081)
+            echo ">>  🚀 HTTP/WebSocket 压测优化 ..."
+           
+            #wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
+            
+            # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
+            # 这样可以让 CPU 满载，以便 GCC 精准捕捉热点函数
+            #wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" --latency http://127.0.0.1:8081
+            wrk -t2 -c200 -d12s --latency \
+                -H "Upgrade: websocket" \
+                -H "Connection: Upgrade" \
+                -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+                -H "Sec-WebSocket-Version: 13" \
+                 http://127.0.0.1:8081/ws
+
+            
+            # D： 强力训练 HTTP 模块的 TLS 解密与证书处理逻辑
+            # ==================================================
+            echo ">> 🚀 正在强力训练 HTTP 模块的 TLS/HTTPS 状态机 压测优化..."
+            # 使用 wrk 直接压测 8082 端口，由于走的是标准的 HTTPS，Nginx 的 TLS 握手、解密、ASN1 别名解析等核心热点代码将被完全灌满！
+            wrk -t2 -c100 -d5s --latency https://127.0.0.1:8082
+     
       - uses: actions/upload-artifact@v7
         with:
           name: nginx-quic.Openssl
