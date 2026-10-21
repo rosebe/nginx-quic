@@ -587,7 +587,7 @@ jobs:
           echo "$(tree -d)"
           
       - name: Upload binaries to release
-        #uses: svenstaro/upload-release-action@e2a63377780a8bacc68dcac9b0979ee20ad5a791
+        #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
         uses: svenstaro/upload-release-action@2.11.5
         #if: github.event_name == 'release'
         with:
@@ -596,18 +596,15 @@ jobs:
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
           file: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
-          body: "### Happy play for CentOS 6.X
-
-                - [ ] compile (-static)
-                
-                `>  ldd nginx-quic-static.v1.xx.x.build.on.202x_x_x-x.x.x` 
-                
-                `>  not a dynamic executable`
-
-                - [ ] nginx configer 
-                
-                `>  nginx -V`"
-                
+          body: |
+            ### Nginx-Quic Build  
+            ### Happy play !
+            - **Commit ID**: ${{ env.Commit_ID }}
+            - **Openssl_Commit_ID**: ${{ env.Openssl_Commit_ID }}
+            - **Optimization**: PGO (Profile Guided Optimization) enabled.
+            - **Arch**: x86-64-v4 (AVX-512)
+            - **Static**: All libraries linked statically.
+            - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
           overwrite: false
           file_glob: false
-          
+      
