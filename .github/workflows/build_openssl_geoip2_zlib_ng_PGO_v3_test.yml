@@ -178,8 +178,8 @@ jobs:
           cd nginx
                
           echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
-          
-          curl https://raw.githubusercontent.com/rosebe/nginx-quit/refs/heads/main/nginx_dynamic_tls_records.patch | patch --verbose -p 1
+               
+          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
           
           # 1. 彻底清理残留
           rm -rf objs/
