@@ -551,6 +551,8 @@ jobs:
             G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
             G_HOST="https://github.com"
             G_REPO="/grpc/grpc-go.git"
+
+            sudo apt-get install -y wrk
             
             #NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
             
@@ -574,8 +576,8 @@ jobs:
             #cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
             #curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/pgo-run/proto/helloworld.proto
 
-            #go install "github.com/bojand/ghz/cmd/ghz@latest"
-            #export PATH=$PATH:$(go env GOPATH)/bin
+            go install "github.com/bojand/ghz/cmd/ghz@latest"
+            export PATH=$PATH:$(go env GOPATH)/bin
             # --- [启动 gRPC 桩服务] ---
             #git clone --depth 1 "${G_HOST}${G_REPO}"
             cd grpc-go/examples/helloworld/greeter_server
