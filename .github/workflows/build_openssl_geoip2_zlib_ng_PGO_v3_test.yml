@@ -558,8 +558,8 @@ jobs:
             G_WORKSPACE="${{ github.workspace }}"
 
             # 2. [环境整备]
-            rm -rf /tmp/pgo-run /tmp/pgo-data
-            rm -rf /tmp/pgo-data/*
+            #rm -rf /tmp/pgo-run /tmp/pgo-data
+            #rm -rf /tmp/pgo-data/*
             mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
             chmod -R 777 /tmp/pgo-run /tmp/pgo-data
 
@@ -570,14 +570,14 @@ jobs:
                   -subj "/CN=example.com"
             
             # 3. [资源分发]
-            cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
-            cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
-            curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/pgo-run/proto/helloworld.proto
+            #cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
+            #cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+            #curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/pgo-run/proto/helloworld.proto
 
-            go install "github.com/bojand/ghz/cmd/ghz@latest"
-            export PATH=$PATH:$(go env GOPATH)/bin
+            #go install "github.com/bojand/ghz/cmd/ghz@latest"
+            #export PATH=$PATH:$(go env GOPATH)/bin
             # --- [启动 gRPC 桩服务] ---
-            git clone --depth 1 "${G_HOST}${G_REPO}"
+            #git clone --depth 1 "${G_HOST}${G_REPO}"
             cd grpc-go/examples/helloworld/greeter_server
             go run main.go > /tmp/grpc-backend.log 2>&1 &
             BACKEND_PID=$!
