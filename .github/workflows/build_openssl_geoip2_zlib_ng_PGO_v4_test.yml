@@ -541,7 +541,9 @@ jobs:
           echo "==== 验证二进制文件状态 ===="
           #chmod +x /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
           file /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
-          ldd /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx || echo "Static binary confirmed"    
+          ldd /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx || echo "Static binary confirmed"
+          echo "✅ nginx -V"
+          /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -V | true
             
       - uses: actions/upload-artifact@v7
         with:
