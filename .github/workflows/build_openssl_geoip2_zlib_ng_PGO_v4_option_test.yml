@@ -386,7 +386,7 @@ jobs:
 
             # 3. 闪退守卫（在拉起后的一小段时间内持续观察 2 秒，防止瞬时闪退）
             echo ">> 🛡️ 正在进行闪退守卫观察..."
-            for i {1..4}; do
+            for i in {1..4}; do
                 sleep 0.5
                 if ! kill -0 "$NGINX_PID" 2>/dev/null; then
                     echo "❌ Nginx 刚拉起就在后台闪退了！崩溃日志如下："
