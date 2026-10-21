@@ -242,7 +242,7 @@ jobs:
             --with-openssl=../openssl  \
             --with-openssl-opt='no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
-            --with-cc-opt='-I/tmp/zlib-ng/include -O3 -march=x86-64-v4 -flto=auto -fprofile-generate=/tmp/pgo-data' \
+            --with-cc-opt='-I/tmp/zlib-ng/include -Ofast -march=x86-64-v4 -flto=auto -fprofile-generate=/tmp/pgo-data' \
             --with-ld-opt='-L/tmp/zlib-ng/lib -flto=auto -fprofile-generate=/tmp/pgo-data'
 
             #--with-cc-opt='-static -static-libgcc -O3 -march=x86-64-v4 -flto=auto -fprofile-generate=/tmp/pgo-data' \
@@ -503,7 +503,7 @@ jobs:
             --with-openssl=../openssl  \
             --with-openssl-opt='no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v4. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
-            --with-cc-opt='-static -I/tmp/zlib-ng/include -static-libgcc -O3 -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
+            --with-cc-opt='-static -I/tmp/zlib-ng/include -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
             --with-ld-opt='-static -L/tmp/zlib-ng/lib -flto=auto -fprofile-use -fprofile-dir=/tmp/pgo-data'
                         
             
@@ -555,7 +555,7 @@ jobs:
         id: step_one
         shell: bash
         run: |
-          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} with-Compiler-gcc zlib-ng pgo v4 test build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} With-Compiler-gcc Support ngx_http_geoip2 zlib-ng PGO V4 test build on $(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
           echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
           echo "RELEASE_NAME=nginx-quic v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
           
