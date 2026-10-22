@@ -512,8 +512,9 @@ jobs:
                 kill -9 "$BACKEND_PID" 2>/dev/null || true
             fi
 
-            find /tmp/pgo-data -name "*.gcda" | head -n 5
-            
+            #find /tmp/pgo-data -name "*.gcda" | head -n 5
+            find /tmp/pgo-data -name "*.gcda" | head -n 10 | xargs ls -lh
+
             echo ">> 最终统计成果："
             find /tmp/pgo-data -name "*.gcda" | wc -l
 
