@@ -648,11 +648,31 @@ jobs:
           G_WORKSPACE="${{ github.workspace }}"
 
           # 2. [运行环境深度清理与重新初始化]
-          sudo killall nginx go main wrk ghz 2>/dev/null || true
-          rm -rf /tmp/final-run
+          #sudo killall nginx go main wrk ghz 2>/dev/null || true
+          #rm -rf /tmp/final-run
+          #mkdir -p /tmp/final-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp}
+          #chmod -R 777 /tmp/final-run
+          
+          echo ">> ⚔️ 正在进行工业级环境死守清理..."
+          # 1. 尝试优雅退出
+          sudo killall -QUIT nginx go main wrk ghz 2>/dev/null || true
+          sleep 1
+          
+          # 2. 暴力强杀所有残留，防止异步延迟
+          sudo killall -9 nginx go main wrk ghz 2>/dev/null || true
+          
+          # 3. 强力释放被占用的核心压测端口（8081, 8443, 8082, 50051），根除端口冲突导致的闪退
+          for port in 8081 8443 8082 50051; do
+              sudo fuser -k -n tcp $port 2>/dev/null || true
+          done
+          
+          # 4. 彻底铲除锁文件与残留配置
+          sudo rm -f /var/run/nginx.pid /var/run/nginx.lock 2>/dev/null || true
+          rm -rf /tmp/pgo-run /tmp/pgo-data /tmp/final-run
+          
           mkdir -p /tmp/final-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp}
           chmod -R 777 /tmp/final-run
-
+            
           # 3. [生成最终压测所需的 HTTPS 证书]
           sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
                 -keyout /tmp/final-run/server.key \
