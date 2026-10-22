@@ -316,10 +316,13 @@ jobs:
             # 创建系统兜底用户，防止 Nginx 核心加载由于残留硬编码触发异常
             sudo useradd -M -s /usr/sbin/nologin nginx 2>/dev/null || true
             
+            echo "✅ nginx -V"
+            /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -V | true
+            
             echo ">> 校验 Nginx 配置文件语法 (强行注入 user root 防闪退)..."
             # 💡 关键点 1：通过 -g 注入 'user root;' 彻底根除 getpwnam("nginx") failed 报错
-            #T_LOG=$(sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf -g "user root;" 2>&1 || true)
-            T_LOG=$(sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf 2>&1 || true)
+            T_LOG=$(sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf -g "user root;" 2>&1 || true)
+            #T_LOG=$(sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf 2>&1 || true)
 
             # 2. 强行打印 NGINX 输出的原始错误，防止被吃掉
             echo "=== NGINX TEST OUTPUT BEGIN ==="
