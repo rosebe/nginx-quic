@@ -710,11 +710,11 @@ jobs:
           
           # Nginx 配置文件
           echo ">> ✅ Nginx 配置文件... "
-          #sudo "$NGINX_BIN" -c /tmp/final-run/pgo.conf \
+          #sudo "$FINAL_NGINX_BIN" -c /tmp/final-run/pgo.conf \
           #         -g "user root; daemon off; worker_processes auto;" \
           #         -T 
             
-          sudo "$NGINX_BIN" -c /tmp/final-run/pgo.conf -T
+          sudo "$FINAL_NGINX_BIN" -c /tmp/final-run/pgo.conf -T
           echo "✅ Nginx 配置文件结束"
             
           # [追加调试守卫：强制打印 NGINX 实时运行崩溃日志]
