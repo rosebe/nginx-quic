@@ -242,8 +242,11 @@ jobs:
             --with-openssl=../openssl  \
             --with-openssl-opt='no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
-            --with-cc-opt='-I/tmp/zlib-ng/include -Ofast -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
-            --with-ld-opt='-L/tmp/zlib-ng/lib -flto=auto -fprofile-generate=/tmp/pgo-data'
+            --with-cc-opt='-I/tmp/zlib-ng/include -Ofast -march=x86-64-v4 -flto=auto -fprofile-generate -fprofile-dir=/tmp/pgo-data' \
+            --with-ld-opt='-L/tmp/zlib-ng/lib -flto=auto -fprofile-generate -fprofile-dir=/tmp/pgo-data'
+            
+            #--with-cc-opt='-I/tmp/zlib-ng/include -Ofast -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
+            #--with-ld-opt='-L/tmp/zlib-ng/lib -flto=auto -fprofile-generate=/tmp/pgo-data'
 
             #--with-cc-opt='-static -static-libgcc -O3 -march=x86-64-v4 -flto=auto -fprofile-generate=/tmp/pgo-data' \
             #--with-ld-opt='-static -flto=auto -fprofile-generate=/tmp/pgo-data'
@@ -509,6 +512,7 @@ jobs:
                 kill -9 "$BACKEND_PID" 2>/dev/null || true
             fi
 
+            find /tmp/pgo-data -name "*.gcda" | head -n 5
             
             echo ">> 最终统计成果："
             find /tmp/pgo-data -name "*.gcda" | wc -l
@@ -577,8 +581,7 @@ jobs:
             --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v4. And build on ${{ env.nginx_build_time }}" \
             --with-cc-opt='-static -I/tmp/zlib-ng/include -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
             --with-ld-opt='-static -L/tmp/zlib-ng/lib -flto=auto -fprofile-use -fprofile-dir=/tmp/pgo-data'
-                        
-            
+
             #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
             # 在现代 GCC（GCC 9+）中，当使用了 -fprofile-use 时，如果您显式指定了路径，标准的参数语法是 -fprofile-dir。但是在有些发行版的 GCC 版本上，配合 -fprofile-use 的规范写法推荐写成
             #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction' \
@@ -617,6 +620,130 @@ jobs:
           echo "✅ nginx -V"
           /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -V | true
             
+      - name: Comprehensive Stress Testing
+        run: |
+          echo "=========================================================="
+          echo "🚀 开始对 Stage 3 最终极致优化版 NGINX 进行全场景综合压测评估 🚀"
+          echo "=========================================================="
+          
+          # 1. [变量整备与防裁剪]
+          G_RAW="https://githubusercontent.com"
+          G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
+          G_HOST="https://github.com"
+          G_REPO="/grpc/grpc-go.git"
+          
+          # 修正：直接使用 objs/ 目录下编译生成的免安装二进制路径
+          FINAL_NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+          G_WORKSPACE="${{ github.workspace }}"
+
+          # 2. [运行环境深度清理与重新初始化]
+          sudo killall nginx go main wrk ghz 2>/dev/null || true
+          rm -rf /tmp/final-run
+          mkdir -p /tmp/final-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp}
+          chmod -R 777 /tmp/final-run
+
+          # 3. [生成最终压测所需的 HTTPS 证书]
+          sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+                -keyout /tmp/final-run/server.key \
+                -out /tmp/final-run/server.crt \
+                -subj "/CN=example.com"
+          
+          # 4. [资源与配置文件分发并动态修正路径]
+          cp "$G_WORKSPACE/pgo.conf" /tmp/final-run/pgo.conf
+          sed -i 's/\/tmp\/pgo-run/\/tmp\/final-run/g' /tmp/final-run/pgo.conf || true
+          
+          cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/final-run/geoip/GeoLite2-Country.mmdb
+          curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/final-run/proto/helloworld.proto
+
+          # 5. [拉起 gRPC 后端桩服务]
+          echo ">> 正在拉起 gRPC 最终测试后端..."
+          cd grpc-go/examples/helloworld/greeter_server
+          go run main.go > /tmp/final-grpc-backend.log 2>&1 &
+          FINAL_BACKEND_PID=$!
+          cd -
+
+          # 等待 gRPC 后端就绪
+          timeout 30s bash -c 'until nc -z localhost 50051; do sleep 1; done' || echo "⚠️ gRPC 后端启动超时"
+
+          # 6. [正式拉起最终免安装版 NGINX]
+          echo ">> 正在拉起最终版 NGINX 实例..."
+          sudo chmod +x $FINAL_NGINX_BIN
+          
+          # 无外挂 GCOV 环境，让最终编译产物全速前行
+          sudo "$FINAL_NGINX_BIN" -c /tmp/final-run/pgo.conf > /tmp/final-nginx-start.log 2>&1 &
+          
+          # 动态轮询等待启动
+          MAX_ATTEMPTS=10
+          ATTEMPT=0
+          FINAL_NGINX_PID=""
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              FINAL_NGINX_PID=$(pgrep -f "nginx: master process.*|/tmp/final-run/pgo.conf" | grep -v "$$" | head -n 1 || true)
+              if [ -n "$FINAL_NGINX_PID" ] && kill -0 "$FINAL_NGINX_PID" 2>/dev/null; then
+                  break
+              fi
+              ATTEMPT=$((ATTEMPT + 1))
+              sleep 0.5
+          done
+
+          if [ -z "$FINAL_NGINX_PID" ]; then
+              echo "❌ 最终版 NGINX 启动失败！日志如下："
+              [ -f /tmp/final-nginx-start.log ] && cat /tmp/final-nginx-start.log
+              exit 1
+          fi
+
+          # 闪退守卫
+          sleep 2
+          if ! kill -0 "$FINAL_NGINX_PID" 2>/dev/null; then
+              echo "❌ 最终版 NGINX 发生瞬时闪退！日志如下："
+              [ -f /tmp/final-nginx-start.log ] && cat /tmp/final-nginx-start.log
+              exit 1
+          fi
+          echo ">> 🎉 最终版 NGINX 稳健运行中 (PID: $FINAL_NGINX_PID)，开始执行极限压测..."
+
+          # ==========================================================
+          # 7. [多协议性能测试与结果获取]
+          # ==========================================================
+          
+          echo -e "\n--------------------------------------------------"
+          echo "📊 核心测试 A：Stream 模块 TLS 握手与长连接吞吐量评估"
+          echo "--------------------------------------------------"
+          wrk -t4 -c400 -d15s --latency --timeout 3s \
+              -H "Host: example.com" \
+              https://127.0.0.1:8443
+
+          echo -e "\n--------------------------------------------------"
+          echo "📊 核心测试 B：gRPC Stream（HTTP/2 多路复用与高并发）"
+          echo "--------------------------------------------------"
+          ghz --insecure --proto /tmp/final-run/proto/helloworld.proto \
+              --call helloworld.Greeter.SayHello \
+              -c 200 -n 50000 --timeout 3s --keepalive 15s 127.0.0.1:8081
+
+          echo -e "\n--------------------------------------------------"
+          echo "📊 核心测试 C：HTTP/WebSocket 协议升级与网关转发状态机"
+          echo "--------------------------------------------------"
+          wrk -t4 -c400 -d15s --latency \
+              -H "Upgrade: websocket" \
+              -H "Connection: Upgrade" \
+              -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+              -H "Sec-WebSocket-Version: 13" \
+              http://127.0.0
+
+          echo -e "\n--------------------------------------------------"
+          echo "📊 核心测试 D：HTTP 核心模块 TLS/HTTPS 强力解密与补丁验证"
+          echo "--------------------------------------------------"
+          wrk -t4 -c300 -d15s --latency --timeout 3s https://127.0.0.1:8082
+
+          # ==========================================================
+          # 8. [环境收尾与优雅退出]
+          # ==========================================================
+          echo -e "\n=========================================================="
+          echo ">> 🏁 所有压测项目执行完毕，正在清理压测现场..."
+          sudo kill -QUIT "$FINAL_NGINX_PID" || true
+          kill -15 "$FINAL_BACKEND_PID" || true
+          echo "🎉 最终全场景综合压测流程顺利闭环！"
+          echo "=========================================================="
+
+      
       - uses: actions/upload-artifact@v7
         with:
           name: nginx-quic.Openssl
