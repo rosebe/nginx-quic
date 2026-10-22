@@ -627,11 +627,11 @@ jobs:
           echo "=========================================================="
           
           # 1. [变量整备与防裁剪]
-          G_RAW="https://githubusercontent.com"
+          G_RAW="https://raw.githubusercontent.com"
           G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
           G_HOST="https://github.com"
           G_REPO="/grpc/grpc-go.git"
-          
+
           # 修正：直接使用 objs/ 目录下编译生成的免安装二进制路径
           FINAL_NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
           G_WORKSPACE="${{ github.workspace }}"
