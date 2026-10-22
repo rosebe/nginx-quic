@@ -707,6 +707,19 @@ jobs:
               [ -f /tmp/final-nginx-start.log ] && cat /tmp/final-nginx-start.log
               exit 1
           fi
+          
+          # [追加调试守卫：强制打印 NGINX 实时运行崩溃日志]
+          echo "=== 检查当前的 NGINX 进程状态 ==="
+          ps aux | grep nginx
+          
+          echo "=== 检查端口实际占用情况 ==="
+          sudo netstat -tlnp || sudo ss -tlnp
+          
+          echo "=== 实时捕获 NGINX 内部错误日志 ==="
+          if [ -f /tmp/final-run/logs/error.log ]; then cat /tmp/final-run/logs/error.log; fi
+          if [ -f /var/log/nginx/error.log ]; then sudo cat /var/log/nginx/error.log; fi
+          if [ -f /tmp/final-nginx-start.log ]; then cat /tmp/final-nginx-start.log; fi
+   
           echo ">> 🎉 最终版 NGINX 稳健运行中 (PID: $FINAL_NGINX_PID)，开始执行极限压测..."
 
           # ==========================================================
