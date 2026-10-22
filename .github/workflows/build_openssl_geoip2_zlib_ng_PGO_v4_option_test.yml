@@ -587,12 +587,9 @@ jobs:
             --with-openssl-opt='no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v4. And build on ${{ env.nginx_build_time }}" \
             --with-cc-opt='-static -I/tmp/zlib-ng/include -static-libgcc -O3 -march=x86-64-v3 -fno-strict-aliasing -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
-            --with-ld-opt='-static -L/tmp/zlib-ng/lib -fprofile-use -fprofile-dir=/tmp/pgo-data'
-
-            
-            
-            
-            
+            --with-ld-opt='-static -L/tmp/zlib-ng/lib -fprofile-use -fprofile-dir=/tmp/pgo-data' \
+            --with-cc="cc -Wno-error"
+  
             
             #--with-cc-opt='-static -I/tmp/zlib-ng/include -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
             #--with-ld-opt='-static -L/tmp/zlib-ng/lib -flto=auto -fprofile-use -fprofile-dir=/tmp/pgo-data'
