@@ -281,6 +281,9 @@ jobs:
                   -out /tmp/pgo-run/server.crt \
                   -subj "/CN=example.com"
             
+            # 2.2 【关键补丁】将证书文件的权限拉满，防止 Nginx 启动时报 "Permission denied" 错误
+            sudo chmod 777 /tmp/pgo-run/server.key /tmp/pgo-run/server.crt
+            
             # 3. [资源分发]
             cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
             cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
@@ -656,7 +659,7 @@ jobs:
           echo ">> ⚔️ 正在进行工业级环境死守清理..."
           # 1. 尝试优雅退出
           sudo killall -QUIT nginx go main wrk ghz 2>/dev/null || true
-          sleep 1
+          sleep 3
           
           # 2. 暴力强杀所有残留，防止异步延迟
           sudo killall -9 nginx go main wrk ghz 2>/dev/null || true
@@ -668,7 +671,7 @@ jobs:
           
           # 4. 彻底铲除锁文件与残留配置
           sudo rm -f /var/run/nginx.pid /var/run/nginx.lock 2>/dev/null || true
-          rm -rf /tmp/pgo-run /tmp/pgo-data /tmp/final-run
+          sudo rm -rf /tmp/pgo-run /tmp/pgo-data /tmp/final-run
           
           mkdir -p /tmp/final-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp}
           chmod -R 777 /tmp/final-run
@@ -678,6 +681,9 @@ jobs:
                 -keyout /tmp/final-run/server.key \
                 -out /tmp/final-run/server.crt \
                 -subj "/CN=example.com"
+          
+          # 3.1 【关键补丁】将证书文件的权限拉满，防止 Nginx 启动时报 "Permission denied" 错误
+          sudo chmod 777 /tmp/final-run/server.key /tmp/final-run/server.crt
           
           # 4. [资源与配置文件分发并动态修正路径]
           cp "$G_WORKSPACE/pgo.conf" /tmp/final-run/pgo.conf
