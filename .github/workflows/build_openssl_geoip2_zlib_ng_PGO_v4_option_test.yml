@@ -242,8 +242,8 @@ jobs:
             --with-openssl=../openssl  \
             --with-openssl-opt='no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
-            --with-cc-opt='-I/tmp/zlib-ng/include -O3 -march=x86-64-v4 -fprofile-generate -fprofile-dir=/tmp/pgo-data' \
-            --with-ld-opt='-L/tmp/zlib-ng/lib -fprofile-generate -fprofile-dir=/tmp/pgo-data'
+            --with-cc-opt='-I/tmp/zlib-ng/include -O3 -march=x86-64-v4 -fprofile-generate=/tmp/pgo-data' \
+            --with-ld-opt='-L/tmp/zlib-ng/lib -fprofile-generate=/tmp/pgo-data'
             
             #--with-cc-opt='-I/tmp/zlib-ng/include -Ofast -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
             #--with-ld-opt='-L/tmp/zlib-ng/lib -flto=auto -fprofile-generate=/tmp/pgo-data'
@@ -589,8 +589,8 @@ jobs:
             --with-openssl=../openssl  \
             --with-openssl-opt='no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v4. And build on ${{ env.nginx_build_time }}" \
-            --with-cc-opt='-static -I/tmp/zlib-ng/include -static-libgcc -O3 -march=x86-64-v4 -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
-            --with-ld-opt='-static -L/tmp/zlib-ng/lib -fprofile-use -fprofile-dir=/tmp/pgo-data'
+            --with-cc-opt="-static -static-libgcc -I/tmp/zlib-ng/include -O3 -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction -Wno-error" \
+            --with-ld-opt="-L/tmp/zlib-ng/lib -static -flto=auto -fprofile-use=/tmp/pgo-data"
 
             #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
             # 在现代 GCC（GCC 9+）中，当使用了 -fprofile-use 时，如果您显式指定了路径，标准的参数语法是 -fprofile-dir。但是在有些发行版的 GCC 版本上，配合 -fprofile-use 的规范写法推荐写成
