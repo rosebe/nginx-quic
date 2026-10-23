@@ -40,6 +40,13 @@ jobs:
       - uses: actions/checkout@v7
                               
       # Runs a set of commands using the runners shell
+      
+      - name: Highest x86-64 microarchitecture level supported by the current host
+        run: |
+          echo "📊 执行此命令会直接打印出当前主机支持的最高 x86-64 微架构等级: "
+          /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 --list-diagnostics | grep -E "v3|v4"
+      
+      
       - name: depend
         run: |
           sudo apt-get update
@@ -191,6 +198,25 @@ jobs:
           # 确保编译期间环境变量是干净的
           unset GCOV_PREFIX
           unset GCOV_PREFIX_STRIP
+
+          DIAG_OUT=$(/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 --list-diagnostics | grep "dl_hwcaps_subdirs=" || true)
+          
+          # 使用 case 语法进行微架构动态判定
+          case "$DIAG_OUT" in
+              *x86-64-v4*)
+                  echo "OPTIMIZED_MARCH=x86-64-v4" >> $GITHUB_ENV
+                  CURRENT_MARCH="x86-64-v4"
+                  ;;
+              *x86-64-v3*)
+                  echo "OPTIMIZED_MARCH=x86-64-v3" >> $GITHUB_ENV
+                  CURRENT_MARCH="x86-64-v3"
+                  ;;
+              *)
+                  echo "OPTIMIZED_MARCH=x86-64" >> $GITHUB_ENV
+                  CURRENT_MARCH="x86-64"
+                  ;;
+          esac
+          echo "✅ CURRENT_MARCH: $CURRENT_MARCH"
          
           
           ./auto/configure \
@@ -242,9 +268,9 @@ jobs:
             --with-openssl=../openssl  \
             --with-openssl-opt='no-comp no-shared enable-tls1_3' \
             --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. And build on $(date +%Y_%m_%d-%H:%M:%S)" \
-            --with-cc-opt='-I/tmp/zlib-ng/include -O3 -march=x86-64-v4 -fprofile-generate=/tmp/pgo-data' \
-            --with-ld-opt='-L/tmp/zlib-ng/lib -fprofile-generate=/tmp/pgo-data'
-            
+            --with-cc-opt="-I/tmp/zlib-ng/include -O3 -march=$CURRENT_MARCH -fprofile-generate=/tmp/pgo-data" \
+            --with-ld-opt="-L/tmp/zlib-ng/lib -fprofile-generate=/tmp/pgo-data"
+                        
             #--with-cc-opt='-I/tmp/zlib-ng/include -Ofast -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
             #--with-ld-opt='-L/tmp/zlib-ng/lib -flto=auto -fprofile-generate=/tmp/pgo-data'
 
@@ -591,7 +617,7 @@ jobs:
             --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v4. And build on ${{ env.nginx_build_time }}" \
             --with-cc-opt="-static -static-libgcc -I/tmp/zlib-ng/include -O3 -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction -Wno-error" \
             --with-ld-opt="-L/tmp/zlib-ng/lib -static -flto=auto -fprofile-use=/tmp/pgo-data"
-
+            
             #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
             # 在现代 GCC（GCC 9+）中，当使用了 -fprofile-use 时，如果您显式指定了路径，标准的参数语法是 -fprofile-dir。但是在有些发行版的 GCC 版本上，配合 -fprofile-use 的规范写法推荐写成
             #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction' \
