@@ -397,8 +397,12 @@ jobs:
             
             echo ">> 💡 关键机制点说明 不使用 —E 参数 ，action 的保护机制"
             
+            #sudo env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=0 \
+            #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf > /tmp/nginx-start.log 2>&1 &
+
             sudo env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=0 \
-                "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf > /tmp/nginx-start.log 2>&1 &
+                "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+                -g "master_process off; worker_processes 1;" > /tmp/nginx-start.log 2>&1 &
 
                 
             
