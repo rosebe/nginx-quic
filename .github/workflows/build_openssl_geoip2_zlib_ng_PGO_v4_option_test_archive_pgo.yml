@@ -559,8 +559,7 @@ jobs:
             find /tmp/pgo-data -name "*.gcda" | wc -l
 
 
-
-      - name: Stage 1.5: archiving of PGO data, with full preservation of paths and permissions
+      - name: Stage 2.1 - Archiving of PGO data, with full preservation of paths and permissions
         run: |
           echo ">> 📦 开始打包 PGO 训练成果..."
           
