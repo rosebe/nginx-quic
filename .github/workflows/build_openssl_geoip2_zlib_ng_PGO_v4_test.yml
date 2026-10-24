@@ -659,9 +659,8 @@ jobs:
             #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
             # 在现代 GCC（GCC 9+）中，当使用了 -fprofile-use 时，如果您显式指定了路径，标准的参数语法是 -fprofile-dir。但是在有些发行版的 GCC 版本上，配合 -fprofile-use 的规范写法推荐写成
             #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction' \
-            #--with-ld-opt='-static -flto=auto -fprofile-use=/tmp/pgo-data' 
+            #--with-ld-opt='-static -flto=auto -fprofile-use=/tmp/pgo-data'
             
-          
           make -j$(nproc)
           
           # 使用 -B 强制重新编译所有目标，但不会执行删除动作
