@@ -270,6 +270,9 @@ jobs:
             --with-cc-opt="-I/tmp/zlib-ng/include -O3 -march=$CURRENT_MARCH -fprofile-generate=/tmp/pgo-data" \
             --with-ld-opt="-L/tmp/zlib-ng/lib -fprofile-generate=/tmp/pgo-data"
                         
+            #编译通过，第二插桩失败，可能出现 段错误 ，可能 -flto 造成的，内联单核 不崩溃，多个work 可能崩溃。保守点。
+            #--with-cc-opt="-I/tmp/zlib-ng/include -Ofast -march=$CURRENT_MARCH -flto=auto -fprofile-generate=/tmp/pgo-data" \
+            
             #--with-cc-opt='-I/tmp/zlib-ng/include -Ofast -march=x86-64-v3 -flto=auto -fprofile-generate=/tmp/pgo-data' \
             #--with-ld-opt='-L/tmp/zlib-ng/lib -flto=auto -fprofile-generate=/tmp/pgo-data'
 
