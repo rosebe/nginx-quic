@@ -772,9 +772,10 @@ jobs:
           # ==========================================
           # 5. [插桩启动 - 强力覆盖全局指令以规避环境冲突崩溃]
           # ==========================================
-          echo ">> 正在全面清理并放开 PGO 数据目录权限..."
+          echo ">> 正在全面清理 PGO 数据目录权限..."
           sudo rm -rf /tmp/pgo-data/*
-          sudo chmod -R 777 /tmp/pgo-data /tmp/pgo-run
+          #sudo chmod -R 777 /tmp/pgo-data /tmp/pgo-run
+          sudo chmod -R 777 /tmp/final-run
             
           # 创建系统兜底用户，防止 Nginx 核心加载由于残留硬编码触发异常
           sudo useradd -M -s /usr/sbin/nologin nginx 2>/dev/null || true
@@ -785,25 +786,26 @@ jobs:
           sudo rm -f /tmp/nginx-start.log
           sudo rm -f /tmp/final-run/logs/error.log
           sudo mkdir -p /tmp/final-run
-          sudo chmod -R 777 /tmp/pgo-data /tmp/pgo-run
-
+          #sudo chmod -R 777 /tmp/pgo-data /tmp/pgo-run
+          sudo chmod -R 777 /tmp/final-run
+          
           # 2. 确认当前二进制及 CPU 指令集
           echo "===== Binary ====="
-          sha256sum "$NGINX_BIN"
-          file "$NGINX_BIN"
+          sha256sum "$FINAL_NGINX_BIN"
+          file "$FINAL_NGINX_BIN"
 
           echo "===== CPU flags ====="
           grep -m1 '^flags' /proc/cpuinfo || true
 
           # 3. 先做配置检查
-          sudo "$NGINX_BIN" -t -c /tmp/final-run/pgo.conf || {
+          sudo "$FINAL_NGINX_BIN" -t -c /tmp/final-run/pgo.conf || {
               echo "NGINX 配置检查失败"
               exit 1
           }
 
           # 4. 前台模式启动，不保留 GCC 插桩环境
           sudo env \
-              "$NGINX_BIN" -c /tmp/final-run/pgo.conf \
+              "$FINAL_NGINX_BIN" -c /tmp/final-run/pgo.conf \
               > /tmp/final-nginx-start.log 2>&1 &
 
           NGINX_LAUNCH_PID=$!
@@ -965,12 +967,6 @@ jobs:
 
             echo "===== Runtime CPU ====="
             lscpu
-
-            echo "===== GCDA count ====="
-            find /tmp/pgo-data -type f -name '*.gcda' | wc -l
-            
-            #find /tmp/pgo-data -name "*.gcda" | head -n 5
-            find /tmp/pgo-data -name "*.gcda" | head -n 10 | xargs ls -lh
 
             echo ">> 最终统计成果："
             find /tmp/pgo-data -name "*.gcda" | wc -l
