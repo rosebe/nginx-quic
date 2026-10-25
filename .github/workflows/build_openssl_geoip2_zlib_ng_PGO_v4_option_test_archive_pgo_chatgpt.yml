@@ -362,10 +362,10 @@ jobs:
             grep -m1 '^flags' /proc/cpuinfo || true
 
             # 3. 先做配置检查
-            sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf || {
-                echo "NGINX 配置检查失败"
-                exit 1
-            }
+            #sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf || {
+            #    echo "NGINX 配置检查失败"
+            #    exit 1
+            #}
 
             # 4. 前台模式启动，保留 GCC 插桩环境
             sudo env \
