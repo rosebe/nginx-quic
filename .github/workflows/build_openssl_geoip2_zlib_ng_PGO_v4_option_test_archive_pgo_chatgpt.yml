@@ -773,6 +773,9 @@ jobs:
           # 4. [资源与配置文件分发并动态修正路径]
           cp "$G_WORKSPACE/pgo.conf" /tmp/final-run/pgo.conf
           sed -i 's/\/tmp\/pgo-run/\/tmp\/final-run/g' /tmp/final-run/pgo.conf || true
+          # 这个命令会把包含 worker_processes 的行统一规范替换为 worker_processes 1;
+          sed -i 's/^.*worker_processes.*;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
+
           
           cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/final-run/geoip/GeoLite2-Country.mmdb
           curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/final-run/proto/helloworld.proto
@@ -820,6 +823,9 @@ jobs:
           echo "===== CPU flags ====="
           grep -m1 '^flags' /proc/cpuinfo || true
 
+          # 3. 检查-V
+          sudo "$FINAL_NGINX_BIN" -V
+          
           # 3. 先做配置检查
           sudo "$FINAL_NGINX_BIN" -t -c /tmp/final-run/pgo.conf || {
               echo "NGINX 配置检查失败"
