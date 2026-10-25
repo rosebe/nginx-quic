@@ -829,7 +829,9 @@ jobs:
           # 4. 前台模式启动，不保留 GCC 插桩环境
           sudo env \
               "$FINAL_NGINX_BIN" -c /tmp/final-run/pgo.conf \
-              > /tmp/final-nginx-start.log 2>&1 &
+              -g "worker_processes 1;" > /tmp/final-nginx-start.log 2>&1 &
+          
+          #    > /tmp/final-nginx-start.log 2>&1 &
 
           NGINX_LAUNCH_PID=$!
 
