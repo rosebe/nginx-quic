@@ -29,8 +29,8 @@ jobs:
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
-    runs-on: ubuntu-24.04
-    #runs-on: ubuntu-latest
+    #runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     
     if: github.event.repository.owner.id == github.event.sender.id
     
@@ -401,14 +401,53 @@ jobs:
             #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf > /tmp/nginx-start.log 2>&1 &
 
             sudo env GCOV_PREFIX="/tmp/pgo-data" GCOV_PREFIX_STRIP=0 \
-                "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
-                -g "daemon off; worker_processes 1;" > /tmp/nginx-start.log 2>&1 &
+                "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf > /tmp/nginx-start.log 2>&1 &
 
-            # 🔴 关键：立刻捕获刚刚后台运行的 Nginx PID
-            NGINX_PID=$!
-            echo ">> ✅ Nginx 成功拉起，运行 PID: $NGINX_PID"    
+                
             
-            
+            # 1. 动态轮询等待（最长等待 5 秒，每 0.5 秒检查一次，启动成功立刻往下走）
+            MAX_ATTEMPTS=10
+            ATTEMPT=0
+            NGINX_PID=""
+
+            echo ">> ⏳ 正在等待 Nginx 启动..."
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                # 优化过滤：排除当前的 sh/bash 脚本进程，且通常寻找 master 进程
+                # 如果 Nginx 配置了 pid 文件，推荐直接读取：[ -f /tmp/pgo-run/nginx.pid ] && NGINX_PID=$(cat /tmp/pgo-run/nginx.pid)
+                NGINX_PID=$(pgrep -f "nginx: master process.*|/tmp/pgo-run/pgo.conf" | grep -v "$$" | head -n 1 || true)
+                
+                # 确保 PID 存在且进程存活
+                if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
+                    break
+                fi
+                
+                ATTEMPT=$((ATTEMPT + 1))
+                sleep 0.5
+            done
+
+            # 2. 首次启动校验
+            if [ -n "$NGINX_PID" ]; then
+                echo ">> ✅ Nginx 成功拉起，运行 PID: $NGINX_PID"
+            else
+                echo "❌ Nginx 正式启动失败，未捕获到进程！崩溃日志如下："
+                [ -f /tmp/nginx-start.log ] && cat /tmp/nginx-start.log
+                exit 1
+            fi
+
+            # 3. 闪退守卫（在拉起后的一小段时间内持续观察 2 秒，防止瞬时闪退）
+            echo ">> 🛡️ 正在进行闪退守卫观察..."
+            for i in {1..4}; do
+                sleep 0.5
+                if ! kill -0 "$NGINX_PID" 2>/dev/null; then
+                    echo "❌ Nginx 刚拉起就在后台闪退了！崩溃日志如下："
+                    [ -f /tmp/nginx-start.log ] && cat /tmp/nginx-start.log
+                    exit 1
+                fi
+            done
+
+            echo ">> 🎉 Nginx 运行稳定，守护通过。"
+
+
             # Nginx 配置文件
             echo ">> ✅ Nginx 配置文件... "
             #sudo "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
