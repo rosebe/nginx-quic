@@ -362,10 +362,10 @@ jobs:
             grep -m1 '^flags' /proc/cpuinfo || true
 
             # 3. 先做配置检查
-            #sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf || {
-            #    echo "NGINX 配置检查失败"
-            #    exit 1
-            #}
+            sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf || {
+                echo "NGINX 配置检查失败"
+                exit 1
+            }
 
             # 4. 前台模式启动，保留 GCC 插桩环境
             sudo env \
@@ -776,10 +776,7 @@ jobs:
           
           # 这个命令会把包含 worker_processes 的行统一规范替换为 worker_processes 1;
           #sed -i 's/^.*worker_processes.*;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
-          
-          #sed -i 's/worker_processes auto;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
-          
-          sed 's/worker_processes auto;/worker_processes 1;\nworker_cpu_affinity 0001;/g' /tmp/final-run/pgo.conf || true 
+          sed -i 's/worker_processes auto;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
 
           
           cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/final-run/geoip/GeoLite2-Country.mmdb
@@ -893,16 +890,7 @@ jobs:
 
           echo "NGINX master 仍然存活：PID=$NGINX_PID"
           ps -eo pid,ppid,stat,args | grep '[n]ginx' || true
-          
-          #######################
-          
-          sudo "$FINAL_NGINX_BIN" -T -c /tmp/final-run/pgo.conf 2>&1 \
-            | grep -E 'worker_processes|daemon|pid |error_log'      
-          
-          grep -E 'worker process .*exited|signal 11|segfault' \
-            /tmp/final-run/logs/error.log
-          #########################
-          
+
           echo ">> 🎉 Nginx 运行稳定，守护通过。"        
           
           
@@ -913,7 +901,7 @@ jobs:
           #         -g "user root; daemon off; worker_processes auto;" \
           #         -T 
             
-          ##sudo "$FINAL_NGINX_BIN" -c /tmp/final-run/pgo.conf -T
+          sudo "$FINAL_NGINX_BIN" -c /tmp/final-run/pgo.conf -T
           echo "✅ Nginx 配置文件结束"
             
             
