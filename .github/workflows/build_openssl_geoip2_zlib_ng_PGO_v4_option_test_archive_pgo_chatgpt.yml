@@ -773,8 +773,10 @@ jobs:
           # 4. [资源与配置文件分发并动态修正路径]
           cp "$G_WORKSPACE/pgo.conf" /tmp/final-run/pgo.conf
           sed -i 's/\/tmp\/pgo-run/\/tmp\/final-run/g' /tmp/final-run/pgo.conf || true
+          
           # 这个命令会把包含 worker_processes 的行统一规范替换为 worker_processes 1;
-          sed -i 's/^.*worker_processes.*;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
+          #sed -i 's/^.*worker_processes.*;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
+          sed -i 's/worker_processes auto;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
 
           
           cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/final-run/geoip/GeoLite2-Country.mmdb
