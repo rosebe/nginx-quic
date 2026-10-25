@@ -691,6 +691,29 @@ jobs:
           ldd /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx || echo "Static binary confirmed"
           echo "✅ nginx -V"
           /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -V | true
+
+          NGINX_TEST="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+
+          echo "==== ELF 类型 ===="
+          readelf -h "$NGINX_TEST" | grep -E 'Class:|Machine:|Type:'
+          
+          echo "==== 动态段检查 ===="
+          if readelf -l "$NGINX_TEST" | grep -q 'INTERP'; then
+              echo "❌ 存在 ELF INTERP 段"
+              exit 1
+          else
+              echo "✅ 不存在 ELF INTERP 段"
+          fi
+          
+          if readelf -d "$NGINX_TEST" 2>&1 | grep -q '(NEEDED)'; then
+              echo "❌ 存在 DT_NEEDED 动态库依赖"
+              exit 1
+          else
+              echo "✅ 未发现 DT_NEEDED 动态库依赖"
+          fi
+          
+          echo "==== 验证运行 ===="
+          "$NGINX_TEST" -V
             
       - name: Comprehensive Stress Testing
         run: |
