@@ -871,7 +871,7 @@ jobs:
           ps -eo pid,ppid,stat,args | grep '[n]ginx' || true
 
           echo "===== Startup log ====="
-          cat /tmp/final-nginx-start.log.log 2>/dev/null || true
+          cat /tmp/final-nginx-start.log 2>/dev/null || true
 
           echo "===== NGINX error log ====="
           cat /tmp/final-run/logs/error.log 2>/dev/null || true
