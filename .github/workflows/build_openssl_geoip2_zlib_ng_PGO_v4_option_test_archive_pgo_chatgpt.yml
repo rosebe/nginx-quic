@@ -893,7 +893,16 @@ jobs:
 
           echo "NGINX master 仍然存活：PID=$NGINX_PID"
           ps -eo pid,ppid,stat,args | grep '[n]ginx' || true
-
+          
+          #######################
+          
+          sudo "$FINAL_NGINX_BIN" -T -c /tmp/final-run/pgo.conf 2>&1 \
+            | grep -E 'worker_processes|daemon|pid |error_log'      
+          
+          grep -E 'worker process .*exited|signal 11|segfault' \
+            /tmp/final-run/logs/error.log
+          #########################
+          
           echo ">> 🎉 Nginx 运行稳定，守护通过。"        
           
           
