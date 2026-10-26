@@ -198,25 +198,47 @@ jobs:
           # 确保编译期间环境变量是干净的
           unset GCOV_PREFIX
           unset GCOV_PREFIX_STRIP
+                 
+          # 根据当前 runner 实际暴露的 CPU 指令集选择目标架构
+          CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
+                print $2
+                exit
+            }' /proc/cpuinfo) "
 
-          DIAG_OUT=$(/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 --list-diagnostics | grep "dl_hwcaps_subdirs=" || true)
-          
-          # 使用 case 语法进行微架构动态判定
-          case "$DIAG_OUT" in
-              *x86-64-v4*)
-                  echo "OPTIMIZED_MARCH=x86-64-v4" >> $GITHUB_ENV
-                  CURRENT_MARCH="x86-64-v4"
-                  ;;
-              *x86-64-v3*)
-                  echo "OPTIMIZED_MARCH=x86-64-v3" >> $GITHUB_ENV
-                  CURRENT_MARCH="x86-64-v3"
-                  ;;
-              *)
-                  echo "OPTIMIZED_MARCH=x86-64" >> $GITHUB_ENV
-                  CURRENT_MARCH="x86-64"
-                  ;;
-          esac
+          has_flag() {
+                case "$CPU_FLAGS" in
+                    *" $1 "*) return 0 ;;
+                    *)         return 1 ;;
+                esac
+          }
+
+          if has_flag avx512f &&
+               has_flag avx512bw &&
+               has_flag avx512cd &&
+               has_flag avx512dq &&
+               has_flag avx512vl; then
+
+                CURRENT_MARCH="x86-64-v4"
+
+          elif has_flag avx2 &&
+                 has_flag bmi1 &&
+                 has_flag bmi2 &&
+                 has_flag fma &&
+                 has_flag f16c &&
+                 { has_flag lzcnt || has_flag abm; } &&
+                 has_flag movbe &&
+                 has_flag xsave; then
+
+                CURRENT_MARCH="x86-64-v3"
+
+          else
+                CURRENT_MARCH="x86-64"
+          fi
+
+          echo "OPTIMIZED_MARCH=$CURRENT_MARCH" >> "$GITHUB_ENV"
           echo "✅ CURRENT_MARCH: $CURRENT_MARCH"
+          echo "===== Detected CPU flags ====="
+          printf '%s\n' "$CPU_FLAGS"
          
           
           ./auto/configure \
@@ -368,12 +390,16 @@ jobs:
             }
 
             # 4. 前台模式启动，保留 GCC 插桩环境
-            sudo env \
-                GCOV_PREFIX=/tmp/pgo-data \
-                GCOV_PREFIX_STRIP=0 \
-                "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
-                > /tmp/nginx-start.log 2>&1 &
+            #sudo env \
+            #    GCOV_PREFIX=/tmp/pgo-data \
+            #    GCOV_PREFIX_STRIP=0 \
+            #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #    > /tmp/nginx-start.log 2>&1 &
 
+            sudo env "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+                 > /tmp/nginx-start.log 2>&1 &
+            
+            
             NGINX_LAUNCH_PID=$!
 
             # 5. 等待 PID 文件出现，并验证 master 是否存活
@@ -650,8 +676,8 @@ jobs:
             --add-module=../ngx_http_geoip2_module \
             --with-openssl=../openssl  \
             --with-openssl-opt='no-comp no-shared enable-tls1_3' \
-            --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible x86-64-v4. And build on ${{ env.nginx_build_time }}" \
-            --with-cc-opt="-static -static-libgcc -I/tmp/zlib-ng/include -O3 -march=x86-64-v4 -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction -Wno-error" \
+            --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible ${{ env.OPTIMIZED_MARCH }}. And build on ${{ env.nginx_build_time }}" \
+            --with-cc-opt="-static -static-libgcc -I/tmp/zlib-ng/include -O3 -march=${{ env.OPTIMIZED_MARCH }} -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction -Wno-error" \
             --with-ld-opt="-L/tmp/zlib-ng/lib -static -flto=auto -fprofile-use=/tmp/pgo-data"
             
             #--with-cc-opt='-static -static-libgcc -Ofast -march=x86-64-v4 -flto=auto -fprofile-use -fprofile-correction -fprofile-dir=/tmp/pgo-data' \
@@ -1085,7 +1111,7 @@ jobs:
             - **Commit ID**: ${{ env.Commit_ID }}
             - **Openssl_Commit_ID**: ${{ env.Openssl_Commit_ID }}
             - **Optimization**: PGO (Profile Guided Optimization) enabled.
-            - **Arch**: x86-64-v4 (AVX-512)
+            - **Arch**: ${{ env.OPTIMIZED_MARCH }}
             - **Static**: All libraries linked statically.
             - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
           overwrite: true
