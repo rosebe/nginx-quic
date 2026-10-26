@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: build nginx-quic with Compiler-GCC and geoip2. zlib-ng. PGO (Profile Guided Optimization) enabled. v4 option (test) archive pgo 1
+name: build nginx-quic with Compiler-GCC and geoip2. zlib-ng. PGO (Profile Guided Optimization) enabled. v4 option (test) archive pgo chatgpt
 
 # Controls when the action will run. 
 on:
