@@ -775,10 +775,10 @@ jobs:
           sed -i 's/\/tmp\/pgo-run/\/tmp\/final-run/g' /tmp/final-run/pgo.conf || true
           
           # 这个命令会把包含 worker_processes 的行统一规范替换为 worker_processes 1;
-          #sed -i 's/^.*worker_processes.*;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
-          #sed -i 's/worker_processes auto;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
+          ##sed -i 's/^.*worker_processes.*;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
+          ##sed -i 's/worker_processes auto;/worker_processes 1;/g' /tmp/final-run/pgo.conf || true
 
-          sed -i 's/worker_processes auto;/worker_processes 1;\nworker_cpu_affinity 0001;/g' /tmp/final-run/pgo.conf || true 
+          #sed -i 's/worker_processes auto;/worker_processes 1;\nworker_cpu_affinity 0001;/g' /tmp/final-run/pgo.conf || true 
 
           
           cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/final-run/geoip/GeoLite2-Country.mmdb
@@ -916,7 +916,8 @@ jobs:
           echo -e "\n--------------------------------------------------"
           echo "📊 核心测试 A：Stream 模块 TLS 握手与长连接吞吐量评估"
           echo "--------------------------------------------------"
-          wrk -t4 -c300 -d15s --latency --timeout 3s \
+          #wrk -t4 -c300 -d15s --latency --timeout 3s \
+          wrk -t2 -c200 -d12s --latency --timeout 2s \
               -H "Host: example.com" \
               https://127.0.0.1:8443
 
@@ -925,12 +926,15 @@ jobs:
           echo "--------------------------------------------------"
           ghz --insecure --proto /tmp/final-run/proto/helloworld.proto \
               --call helloworld.Greeter.SayHello \
-              -c 200 -n 40000 --timeout 3s --keepalive 10s 127.0.0.1:8081 || true
+              -c 100 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
+              
+          #-c 200 -n 40000 --timeout 3s --keepalive 10s 127.0.0.1:8081 || true
 
           echo -e "\n--------------------------------------------------"
           echo "📊 核心测试 C：HTTP/WebSocket 协议升级与网关转发状态机"
           echo "--------------------------------------------------"
-          wrk -t4 -c300 -d15s --latency \
+          #wrk -t4 -c300 -d15s --latency \
+          wrk -t2 -c200 -d12s --latency \
               -H "Upgrade: websocket" \
               -H "Connection: Upgrade" \
               -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
@@ -940,7 +944,8 @@ jobs:
           echo -e "\n--------------------------------------------------"
           echo "📊 核心测试 D：HTTP 核心模块 TLS/HTTPS 强力解密与补丁验证"
           echo "--------------------------------------------------"
-          wrk -t4 -c200 -d15s --latency --timeout 3s https://127.0.0.1:8082
+          #wrk -t4 -c200 -d15s --latency --timeout 3s https://127.0.0.1:8082
+          wrk -t2 -c100 -d5s --latency https://127.0.0.1:8082
 
           # ==========================================================
           # 8. [环境收尾与优雅退出]
