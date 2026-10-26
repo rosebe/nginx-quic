@@ -669,7 +669,7 @@ jobs:
             --add-module=../ngx_http_geoip2_module \
             --with-openssl=../openssl  \
             --with-openssl-opt='no-comp no-shared enable-tls1_3' \
-            --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. compatible ${{ env.OPTIMIZED_MARCH }}. And build on ${{ env.nginx_build_time }}" \
+            --build="Commit ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe Add patch: Dynamic TLS Record support. PGO (Profile Guided Optimization) enabled. arch ${{ env.OPTIMIZED_MARCH }}. And build on ${{ env.nginx_build_time }}" \
             --with-cc-opt="-static -static-libgcc -I/tmp/zlib-ng/include -O3 -march=${{ env.OPTIMIZED_MARCH }} -flto=auto -fprofile-use=/tmp/pgo-data -fprofile-correction -Wno-error" \
             --with-ld-opt="-L/tmp/zlib-ng/lib -static -flto=auto -fprofile-use=/tmp/pgo-data"
             
