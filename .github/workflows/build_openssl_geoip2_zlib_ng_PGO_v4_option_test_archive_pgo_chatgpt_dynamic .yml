@@ -881,7 +881,7 @@ jobs:
           fi
 
           # 7. 闪退守卫：同时检查 master 和实际 worker
-          sleep 2
+          sleep 5
 
           if ! sudo kill -0 "$NGINX_PID" 2>/dev/null; then
                 echo "NGINX master 已退出"
@@ -916,7 +916,7 @@ jobs:
           echo -e "\n--------------------------------------------------"
           echo "📊 核心测试 A：Stream 模块 TLS 握手与长连接吞吐量评估"
           echo "--------------------------------------------------"
-          wrk -t2 -c200 -d12s --latency --timeout 2s \
+          wrk -t4 -c300 -d15s --latency --timeout 3s \
               -H "Host: example.com" \
               https://127.0.0.1:8443
 
@@ -925,12 +925,12 @@ jobs:
           echo "--------------------------------------------------"
           ghz --insecure --proto /tmp/final-run/proto/helloworld.proto \
               --call helloworld.Greeter.SayHello \
-              -c 100 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
+              -c 200 -n 40000 --timeout 3s --keepalive 10s 127.0.0.1:8081 || true
 
           echo -e "\n--------------------------------------------------"
           echo "📊 核心测试 C：HTTP/WebSocket 协议升级与网关转发状态机"
           echo "--------------------------------------------------"
-          wrk -t2 -c200 -d12s --latency \
+          wrk -t4 -c300 -d15s --latency \
               -H "Upgrade: websocket" \
               -H "Connection: Upgrade" \
               -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
@@ -940,7 +940,7 @@ jobs:
           echo -e "\n--------------------------------------------------"
           echo "📊 核心测试 D：HTTP 核心模块 TLS/HTTPS 强力解密与补丁验证"
           echo "--------------------------------------------------"
-          wrk -t2 -c100 -d5s --latency --timeout 3s https://127.0.0.1:8082
+          wrk -t4 -c200 -d15s --latency --timeout 3s https://127.0.0.1:8082
 
           # ==========================================================
           # 8. [环境收尾与优雅退出]
@@ -976,7 +976,7 @@ jobs:
 
                 # 如果两个都退出了，说明落盘成功，直接跳出循环
                 if [ $NGINX_ALIVE -eq 0 ] && [ $BACKEND_ALIVE -eq 0 ]; then
-                    echo ">> ✅ 所有进程已优雅退出，数据落盘完成。"
+                    echo ">> ✅ 所有进程已优雅退出。"
                     break
                 fi
 
@@ -1005,8 +1005,7 @@ jobs:
             echo "===== Runtime CPU ====="
             lscpu
 
-            echo ">> 最终统计成果："
-            find /tmp/pgo-data -name "*.gcda" | wc -l
+                     
           echo "🎉 最终全场景综合压测流程顺利闭环！"
           echo "=========================================================="
 
