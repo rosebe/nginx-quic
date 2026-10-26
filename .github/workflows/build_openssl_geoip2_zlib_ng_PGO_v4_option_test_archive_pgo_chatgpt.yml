@@ -40,13 +40,6 @@ jobs:
       - uses: actions/checkout@v7
                               
       # Runs a set of commands using the runners shell
-      
-      - name: Highest x86-64 microarchitecture level supported by the current host
-        run: |
-          echo "📊 执行此命令会直接打印出当前主机支持的最高 x86-64 微架构等级: "
-          /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 --list-diagnostics | grep -E "v3|v4"
-      
-      
       - name: depend
         run: |
           sudo apt-get update
