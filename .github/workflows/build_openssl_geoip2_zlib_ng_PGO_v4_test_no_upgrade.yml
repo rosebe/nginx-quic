@@ -515,14 +515,59 @@ jobs:
             # 使用 wrk 直接压测 8082 端口，由于走的是标准的 HTTPS，Nginx 的 TLS 握手、解密、ASN1 别名解析等核心热点代码将被完全灌满！
             wrk -t2 -c100 -d5s --latency https://127.0.0.1:8082
 
+            # 1. 动态轮询等待（最长等待 5 秒，每 0.5 秒检查一次，启动成功立刻往下走）
+            MAX_ATTEMPTS=10
+            ATTEMPT=0
+            NGINX_PID=""
+
+            echo ">> ⏳ 正在确认 Nginx 正在运行..."
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                # 优化过滤：排除当前的 sh/bash 脚本进程，且通常寻找 master 进程
+                # 如果 Nginx 配置了 pid 文件，推荐直接读取：
+                [ -f /tmp/pgo-run/nginx.pid ] && NGINX_PID=$(cat /tmp/pgo-run/nginx.pid)
+                
             
+                # 确保 PID 存在且进程存活
+                if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
+                    break
+                fi
+                
+                ATTEMPT=$((ATTEMPT + 1))
+                sleep 0.5
+            done
+
+            # 2. 首次启动校验
+            if [ -n "$NGINX_PID" ]; then
+                echo ">> ✅ Nginx 成功拉起，运行 PID: $NGINX_PID"
+            else
+                echo "❌ Nginx 正式启动失败，未捕获到进程！崩溃日志如下："
+                [ -f /tmp/nginx-start.log ] && cat /tmp/nginx-start.log
+                exit 1
+            fi
+            sleep 2
+            # 3. 闪退守卫（在拉起后的一小段时间内持续观察 2 秒，防止瞬时闪退）
+            echo ">> 🛡️ 正在进行闪退守卫观察..."
+            for i in {1..4}; do
+                sleep 0.5
+                if ! sudo kill -0 "$NGINX_PID" 2>/dev/null; then
+                    echo "❌ Nginx 刚拉起就在后台闪退了！崩溃日志如下："
+                    [ -f /tmp/nginx-start.log ] && cat /tmp/nginx-start.log
+                    exit 1
+                fi
+            done
+
+            echo ">> 🎉 Nginx 运行稳定，守护通过。"
+
             
             
             # 7. [收割数据]
-            echo ">> 正在触发 Profile 数据落盘..."
+            echo ">>  ⏳ 正在触发 Profile 数据落盘..."
             [ -n "$NGINX_PID" ] && sudo kill -QUIT $NGINX_PID || true
             [ -n "$BACKEND_PID" ] && kill $BACKEND_PID || true
             sleep 10
+
+            #find /tmp/pgo-data -name "*.gcda" | head -n 5
+            find /tmp/pgo-data -name "*.gcda" | head -n 10 | xargs ls -lh
             
             echo ">> 最终统计成果："
             find /tmp/pgo-data -name "*.gcda" | wc -l
