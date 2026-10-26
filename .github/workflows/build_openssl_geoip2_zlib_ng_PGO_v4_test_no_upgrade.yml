@@ -574,9 +574,7 @@ jobs:
                 fi
                 sleep 1
             done
-            
-            ps -ef | grep '[n]ginx'
-
+           
             #find /tmp/pgo-data -name "*.gcda" | head -n 5
             find /tmp/pgo-data -name "*.gcda" | head -n 10 | xargs ls -lh
             
