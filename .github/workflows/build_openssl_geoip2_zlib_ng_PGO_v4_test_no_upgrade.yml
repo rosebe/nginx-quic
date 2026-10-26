@@ -107,8 +107,13 @@ jobs:
           git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli
           cd ngx_brotli/deps/brotli
           mkdir out && cd out
-          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_CXX_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_INSTALL_PREFIX=./installed ..
-          cmake --build . --config Release --target brotlienc
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_SHARED_LIBS=OFF \
+                -DCMAKE_C_FLAGS="-O3 -m64 -march=native -mtune=native -funroll-loops -ffunction-sections -fdata-sections" \
+                -DCMAKE_CXX_FLAGS="-O3 -m64 -march=native -mtune=native -funroll-loops -ffunction-sections -fdata-sections" \
+                -DCMAKE_INSTALL_PREFIX=./installed ..
+          
+          cmake --build . --config Release --target brotlienc --verbose
           
           cd ../../../..
           
@@ -438,12 +443,12 @@ jobs:
                 [ -f /tmp/nginx-start.log ] && cat /tmp/nginx-start.log
                 exit 1
             fi
-
+            sleep 2
             # 3. 闪退守卫（在拉起后的一小段时间内持续观察 2 秒，防止瞬时闪退）
             echo ">> 🛡️ 正在进行闪退守卫观察..."
             for i in {1..4}; do
                 sleep 0.5
-                if ! kill -0 "$NGINX_PID" 2>/dev/null; then
+                if ! sudo kill -0 "$NGINX_PID" 2>/dev/null; then
                     echo "❌ Nginx 刚拉起就在后台闪退了！崩溃日志如下："
                     [ -f /tmp/nginx-start.log ] && cat /tmp/nginx-start.log
                     exit 1
