@@ -297,7 +297,7 @@ jobs:
            gcc --version || true
            g++ --version || true
            
-      - name: openssl-4.1 [Static build with musl-gcc]
+      - name: openssl-4.1 [Static build with gcc]
         env: 
           #CC: musl-gcc
           #CXX: musl-g++
@@ -358,7 +358,7 @@ jobs:
           echo "📂 头文件列表："
           ls -lh "$GITHUB_WORKSPACE/openssl/installed/include/openssl"
    
-      - name: brotli [Static build with musl-gcc]
+      - name: brotli [Static build with gcc]
         env:
           #CC: musl-gcc
           #CXX: musl-g++
@@ -480,7 +480,7 @@ jobs:
           echo "📂 头文件列表："
           ls -lh "$GITHUB_WORKSPACE/pcre2/installed/include"
       
-      - name: zlib-ng [Pre-configure zlib-ng for Musl]
+      - name: zlib-ng [Pre-configure zlib-ng for gcc]
         env:
           #CC: musl-gcc
           #CXX: musl-g++
@@ -525,7 +525,7 @@ jobs:
           echo "📂 头文件列表："
           ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/include"
       
-      - name: zstd [Static build & install with musl-gcc]
+      - name: zstd [Static build & install with gcc]
         env:
           zstd_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
@@ -1033,11 +1033,15 @@ jobs:
                 # └─ https://...: 目标服务的 HTTPS 地址（端口 8082），触发 TLS 握手和加解密逻辑
 
             
-            
-            
+            echo ""
+            sleep 5
+            echo ">> ⏳ 通知 Nginx (PID: $NGINX_PID) 发送退出信号..."
+            echo ">> ⏳ 通知 Backend (PID: $BACKEND_PID) 发送退出信号..."
+            echo ""
+            echo ""
             # 7. [收割数据]
             echo ">> 📦 正在触发 Profile 数据落盘..."
-
+            echo ""
             # --- 1. 处理 Nginx ---
             if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
                 # 💡 技巧：如果你的 Profile 插件依附于 Worker，可以直接向所有 worker 发送信号
@@ -1165,7 +1169,7 @@ jobs:
             - **Commit ID**: ${{ env.Commit_ID }}
             - **Openssl_Commit_ID**: ${{ env.Openssl_Commit_ID }}
             - **Optimization**: PGO (Profile Guided Optimization) Disabled.
-            - **Arch**: X86-64-v4(AVX512) X86-64-v3(AVX2)
+            - **Arch**: ${{ env.OPTIMIZED_MARCH }}
             - **Static**: All libraries linked statically.
             - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
           overwrite: true
