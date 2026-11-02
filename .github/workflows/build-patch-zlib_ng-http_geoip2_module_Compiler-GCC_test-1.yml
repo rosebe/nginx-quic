@@ -383,7 +383,7 @@ jobs:
             -DCMAKE_CXX_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -m64 -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" \
             -DCMAKE_INSTALL_PREFIX=../installed ..
                   
-          # -DCMAKE_POSITION_INDEPENDENT_CODE=ON   # 👈 强制开启 -fPIC 编译
+          # -DCMAKE_POSITION_INDEPENDENT_CODE=ON   # 👈 强制开启 -fPIC 编译 ，CMake 官方的标准参数
           #-DCMAKE_C_FLAGS="-static -O2 -ffunction-sections -fdata-sections" \  
           #cmake --build . --config Release --target brotlienc
           
@@ -509,17 +509,19 @@ jobs:
           #    - 直接注入之前拼接并格式化好的全局环境变量（包含 -march 和优化选项）
           cmake \
             -DCMAKE_C_COMPILER=gcc \
-            -DCMAKE_CXX_COMPILER=g++ \
             -DCMAKE_BUILD_TYPE=Release \
             -DZLIB_INCLUDE_DIR=$GITHUB_WORKSPACE/zlib-ng/installed/include \
             -DZLIB_LIBRARY=$GITHUB_WORKSPACE/zlib-ng/installed/lib/libz.a \
             -DBUILD_SHARED_LIBS=OFF \
             -DPCRE2_SUPPORT_JIT=ON \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DPCRE2_BUILD_STATIC_WITH_PIC=ON \
             -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" \
             -DCMAKE_INSTALL_PREFIX=../installed ..
           
           
+          # -DPCRE2_BUILD_STATIC_WITH_PIC=ON \  # 👈 必须追加这行，强制 PCRE2 在静态库中启用 PIC
+          # -DPCRE2_BUILD_STATIC_WITH_PIC=ON 是 PCRE2 源码特有的自定义参数。它专门用来强行把 -fPIC 注入到那张日志表里的 Build static libs 核心静态库中
           
           # 3. 编译并提取安装到 ../installed/ 目录下
           cmake --build . --config Release -j$(nproc)
