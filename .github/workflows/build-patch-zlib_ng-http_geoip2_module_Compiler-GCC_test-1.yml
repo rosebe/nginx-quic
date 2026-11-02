@@ -362,6 +362,7 @@ jobs:
         env:
           #CC: musl-gcc
           #CXX: musl-g++
+          Brotli_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli.git
           cd ngx_brotli/deps/brotli
@@ -443,6 +444,7 @@ jobs:
         env:
           #CC: musl-gcc
           #CXX: musl-g++
+          Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           # 1. 克隆源码并同步子模块（JIT 引擎依赖 SLJIT 子模块，必须加 --recurse-submodules）
           git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
@@ -482,6 +484,7 @@ jobs:
         env:
           #CC: musl-gcc
           #CXX: musl-g++
+          zlib-ng_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           git clone https://github.com/zlib-ng/zlib-ng.git
           cd zlib-ng
@@ -523,6 +526,8 @@ jobs:
           ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/include"
       
       - name: zstd [Static build & install with musl-gcc]
+        env:
+          zstd_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           # 1. 检出轻量化源码并清理旧缓存
           git clone --depth 1 https://github.com/facebook/zstd.git
@@ -569,9 +574,6 @@ jobs:
           ls -lh "$GITHUB_WORKSPACE/zstd/installed/include"
        
       - name: zstd-nginx-module
-        env:
-          #CC: musl-gcc
-          #CXX: musl-g++
         run: |
           git clone https://github.com/tokers/zstd-nginx-module.git
           #cd zstd-nginx-module
@@ -582,6 +584,7 @@ jobs:
         env:
           #CC: musl-gcc
           #CXX: musl-g++
+          libmaxminddb_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           git clone --recursive -j8 https://github.com/maxmind/libmaxminddb.git
           cd libmaxminddb
@@ -628,6 +631,7 @@ jobs:
         env:
           #CC: musl-gcc
           #CXX: musl-g++
+          nginx_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         
         run: |
           git clone https://github.com/nginx/nginx.git
