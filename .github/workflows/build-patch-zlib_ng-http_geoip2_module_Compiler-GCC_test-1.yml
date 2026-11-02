@@ -1,0 +1,1168 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build nginx-quic with zlib-ng. zstd-nginx-module. ngx_http_geoip2_module. Compiler-GCC (test) 1
+
+# Controls when the action will run. 
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  #push:
+    #branches:
+      #- main
+      #- b*
+  #pull_request:
+    #branches:
+      #- main
+      #- b*
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      arch_version:
+        description: 'Arch_version'
+        required: true
+        type: choice
+        options:
+          - 'x86-64-v4'
+          - 'x86-64-v3'
+          - 'x86-64-v2'
+          - 'x86-64'
+          - 'native'
+        default: 'x86-64-v3'
+      
+      optimize_flags:
+        description: 'Optimize_flags'
+        required: true
+        type: choice
+        options:
+          - '-O3 -flto=auto'
+          - '-O2 -flto=auto'
+          - '-O3'
+          - '-O2'
+        default: '-O3 -flto=auto'
+        
+      Runtime_Depend_Update:
+        description: 'Click here to Runtime Depend Update'
+        required: false
+        type: boolean
+        default: false
+        
+      Binaries_Stress_Testing:
+        description: 'Click here to Binaries_Stress_Testing.'
+        required: false
+        type: boolean
+        default: false
+      
+      Upload_Binaries_To_Release:
+        description: 'Click here to upload binaries to release'
+        required: false
+        type: boolean
+        default: false
+ 
+  release:
+    types: [published]
+
+# Set time zone
+env:
+  TZ: Asia/Shanghai
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    #runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      
+      - name: CPU instruction set architecture
+        # 使用重试插件，如果 exit 1 则会自动更换新机器重试
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 2
+          max_attempts: 5 # 最多重试 X 次去刷机器
+          retry_on: error
+          command: |
+            # 根据当前 runner 实际暴露的 CPU 指令集选择目标架构
+            CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
+                  print $2
+                  exit
+              }' /proc/cpuinfo) "
+  
+            has_flag() {
+                  case "$CPU_FLAGS" in
+                      *" $1 "*) return 0 ;;
+                      *)         return 1 ;;
+                  esac
+            }
+  
+            if has_flag avx512f &&
+                 has_flag avx512bw &&
+                 has_flag avx512cd &&
+                 has_flag avx512dq &&
+                 has_flag avx512vl; then
+  
+                  CURRENT_MARCH="x86-64-v4"
+  
+            elif has_flag avx2 &&
+                   has_flag bmi1 &&
+                   has_flag bmi2 &&
+                   has_flag fma &&
+                   has_flag f16c &&
+                   { has_flag lzcnt || has_flag abm; } &&
+                   has_flag movbe &&
+                   has_flag xsave; then
+  
+                  CURRENT_MARCH="x86-64-v3"
+  
+            else
+                  CURRENT_MARCH="x86-64"
+            fi
+  
+            
+            echo "✅ Runner_CURRENT_MARCH: $CURRENT_MARCH"
+            
+            echo "===== Detected CPU flags ====="
+            printf '%s\n' "$CPU_FLAGS"
+            
+            # 读取输入，并提供 release 触发时的默认回滚值
+            INPUT_ARCH="${{ github.event.inputs.arch_version }}"
+            INPUT_OPT="${{ github.event.inputs.optimize_flags }}"
+            if [ -z "$INPUT_ARCH" ]; then INPUT_ARCH="x86-64-v3"; fi
+            if [ -z "$INPUT_OPT" ]; then INPUT_OPT="-O3 -flto=auto"; fi
+         
+            # === 1. 定义架构权重（用于向下兼容判断） ===
+            get_weight() {
+                  case "$1" in
+                      "x86-64-v4") echo 4 ;;
+                      "x86-64-v3") echo 3 ;;
+                      "x86-64-v2") echo 2 ;; # 预留 v2 扩展
+                      *)           echo 1 ;; # 默认为基础 x86-64
+                  esac
+            }
+            
+            CURRENT_WEIGHT=$(get_weight "$CURRENT_MARCH")
+            TARGET_WEIGHT=$(get_weight "$INPUT_ARCH")
+            
+            # === 2. 比较权重 ===
+            if [ "$CURRENT_WEIGHT" -ge "$TARGET_WEIGHT" ]; then
+                  echo "✅ 架构兼容检查通过！(当前硬件: $CURRENT_MARCH >= 目标编译: $INPUT_ARCH)"
+            else
+                  echo "❌ 错误: 当前硬件架构不足以运行目标程序！"
+                  echo "当前硬件最高支持: $CURRENT_MARCH，但设定编译目标为: $INPUT_ARCH"
+                  exit 1
+            fi
+  
+            # === 3. 兼容检查通过后，写入环境变量 ===
+            echo "OPTIMIZED_MARCH=$INPUT_ARCH" >> "$GITHUB_ENV"
+            echo "OPTIMIZED_FLAGS=$INPUT_OPT" >> "$GITHUB_ENV"
+         
+      
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v7.0.1
+      
+      # Runs a set of commands using the runners shell
+      - name: Runtime depend 
+        if: ${{ github.event.inputs.Runtime_Depend_Update == 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get upgrade 
+          sudo apt-get install build-essential ca-certificates \
+                               zlib1g-dev libssl-dev \
+                               git cmake ninja-build gnupg2 lsb-release libunwind-dev \
+                               tar unzip  wget curl tree perl-base
+          sudo apt-get install -y libc6-dev zlib1g-dev
+          sudo add-apt-repository ppa:maxmind/ppa
+          sudo apt-get install libmaxminddb0 libmaxminddb-dev mmdb-bin
+          
+          #sudo apt-get install -y libzstd-dev pkg-config
+          #sudo apt-get install -y libc6-dev libpcre3-dev zlib1g-dev libstdc++-staticgcc g++-static
+      # 注意：某些高版本 Ubuntu 移除了 glibc 的静态库，全静态链接可能会提示找不到 -lc 或 -lpthread
+
+      # zlib1g-dev libc6-dev    
+      #- name: Setup Go environment
+        #uses: actions/setup-go@v4.0.1
+        #with:
+         #go-version: ^1.19
+         #check-latest: true
+         
+      #- name: Go version
+        #run:  |
+         #go version
+         
+      - name: CPU instruction set architecture again
+        run: |
+          # 根据当前 runner 实际暴露的 CPU 指令集选择目标架构
+          CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
+                print $2
+                exit
+            }' /proc/cpuinfo) "
+
+          has_flag() {
+                case "$CPU_FLAGS" in
+                    *" $1 "*) return 0 ;;
+                    *)         return 1 ;;
+                esac
+          }
+
+          if has_flag avx512f &&
+               has_flag avx512bw &&
+               has_flag avx512cd &&
+               has_flag avx512dq &&
+               has_flag avx512vl; then
+
+                CURRENT_MARCH="x86-64-v4"
+
+          elif has_flag avx2 &&
+                 has_flag bmi1 &&
+                 has_flag bmi2 &&
+                 has_flag fma &&
+                 has_flag f16c &&
+                 { has_flag lzcnt || has_flag abm; } &&
+                 has_flag movbe &&
+                 has_flag xsave; then
+
+                CURRENT_MARCH="x86-64-v3"
+
+          else
+                CURRENT_MARCH="x86-64"
+          fi
+
+          
+          echo "✅  Runner_CURRENT_MARCH: $CURRENT_MARCH"
+          
+          echo "===== Detected CPU flags ====="
+          printf '%s\n' "$CPU_FLAGS"
+          
+          # 读取输入，并提供 release 触发时的默认回滚值
+          INPUT_ARCH="${{ github.event.inputs.arch_version }}"
+          INPUT_OPT="${{ github.event.inputs.optimize_flags }}"
+          if [ -z "$INPUT_ARCH" ]; then INPUT_ARCH="x86-64-v3"; fi
+          if [ -z "$INPUT_OPT" ]; then INPUT_OPT="-O3 -flto=auto"; fi
+       
+          # === 1. 定义架构权重（用于向下兼容判断） ===
+          get_weight() {
+                case "$1" in
+                    "x86-64-v4") echo 4 ;;
+                    "x86-64-v3") echo 3 ;;
+                    "x86-64-v2") echo 2 ;; # 预留 v2 扩展
+                    *)           echo 1 ;; # 默认为基础 x86-64
+                esac
+          }
+          
+          CURRENT_WEIGHT=$(get_weight "$CURRENT_MARCH")
+          TARGET_WEIGHT=$(get_weight "$INPUT_ARCH")
+          
+          # === 2. 比较权重 ===
+          if [ "$CURRENT_WEIGHT" -ge "$TARGET_WEIGHT" ]; then
+                echo "✅ 架构兼容检查通过！(当前硬件: $CURRENT_MARCH >= 目标编译: $INPUT_ARCH)"
+          else
+                echo "❌ 错误: 当前硬件架构不足以运行目标程序！"
+                echo "当前硬件最高支持: $CURRENT_MARCH，但设定编译目标为: $INPUT_ARCH"
+                exit 1
+          fi
+
+          # === 3. 兼容检查通过后，写入环境变量 ===
+          echo "OPTIMIZED_MARCH=$INPUT_ARCH" >> "$GITHUB_ENV"
+          echo "OPTIMIZED_FLAGS=$INPUT_OPT" >> "$GITHUB_ENV"
+      
+      
+      - name: OPTIMIZED_MARCH and OPTIMIZED_FLAGS
+        run: |
+          echo "✅ OPTIMIZED_MARCH: ${{ env.OPTIMIZED_MARCH }}"
+          echo "✅ OPTIMIZED_FLAGS: ${{ env.OPTIMIZED_FLAGS }}"
+      
+      - name: Setup GCC environment
+        uses: egor-tensin/setup-gcc@v2.0
+        with:
+         version: 16
+         platform: x64 
+      
+      #- name: Install musl toolchain
+        #run: |
+          #sudo apt-get install -y musl musl-dev musl-tools linux-libc-dev
+          ## 核心修复：将 Linux 内核头文件软链接到 musl 的搜索路径中，防止符号污染
+          #sudo ln -s /usr/include/linux /usr/include/x86_64-linux-musl/linux
+          #sudo ln -s /usr/include/asm-generic /usr/include/x86_64-linux-musl/asm-generic
+          #sudo ln -sf /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl/asm
+          
+          ###sudo ln -s /usr/include/asm /usr/include/x86_64-linux-musl/asm
+          
+      - name: Verify installation
+        run: |
+           # 验证两个编译器是否正常工作
+           #musl-gcc --version
+           #musl-g++ --version
+           gcc --version || true
+           g++ --version || true
+           
+      - name: openssl-4.1 [Static build with musl-gcc]
+        env: 
+          #CC: musl-gcc
+          #CXX: musl-g++
+          OPENSSL_COMMIT_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+        run: |
+          # 1. 深度拉取指定分支并精准同步子模块
+          git clone --recurse-submodules -b openssl-4.1 --depth 1 -j8 https://github.com/openssl/openssl.git
+          cd openssl
+          
+          # 如果需要精准锁定特定的 Commit ID，可以取消下面两行的注释：
+          # git fetch --depth 1 origin ${OPENSSL_COMMIT_ID_LOCAL}
+          # git reset --hard ${OPENSSL_COMMIT_ID_LOCAL}
+          
+          git submodule update --init --recursive
+          echo "Openssl_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ Openssl_Commit_ID: $(git rev-parse HEAD) "
+                   
+          # 2. 核心注入配置：
+          #    - linux-x86_64: 指定目标平台
+          #    - no-shared: 强行关闭动态库，只生成静态库 (libcrypto.a, libssl.a)
+          #    - no-tests: 关闭测试以大幅缩短 GitHub Actions 的编译耗时
+          #    - --prefix: 统一指定纯净安装目录（必须使用绝对路径）
+          #    - 直接追加注入之前格式化好的全局变量 $CFLAGS（包含 -march 和优化选项）
+          perl ./Configure linux-x86_64 \
+                         no-shared \
+                         no-tests \
+                         --prefix=$(pwd)/installed \
+                         --openssldir=$(pwd)/installed/ssl \
+                         CC=gcc \
+                         ${{ env.OPTIMIZED_FLAGS }} \
+                         -march=${{ env.OPTIMIZED_MARCH }}
+                    
+          # 3. 编译并提纯释放到 openssl/installed/ 目录下（跳过庞大文档生成）
+          make -j"$(nproc)"
+          make install_sw
+        
+          cd ..                  # 【对齐关键点】：回到 GitHub Workspace 根目录！
+          
+          echo "当前路径" 
+          pwd
+          
+          # 4. 【验证对齐】
+          # 自动探测 OpenSSL 生成的是 lib 还是 lib64 目录，确保 100% 打印成功
+          echo "=== 检查 openssl 静态提纯产物 ==="
+          if [ -d "openssl/installed/lib64" ]; then
+              ls -lh openssl/installed/lib64/libssl.a
+              ls -lh openssl/installed/lib64/libcrypto.a
+          else
+              ls -lh openssl/installed/lib/libssl.a
+              ls -lh openssl/installed/lib/libcrypto.a
+          fi
+          ls -lh openssl/installed/include/openssl/ssl.h
+          
+          # ================= 最终核对与环境变量导出 =================
+          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
+          echo "📂 静态库列表："
+          ls -lh "$GITHUB_WORKSPACE/openssl/installed/lib64"
+          echo "📂 头文件列表："
+          ls -lh "$GITHUB_WORKSPACE/openssl/installed/include/openssl"
+   
+      - name: brotli [Static build with musl-gcc]
+        env:
+          #CC: musl-gcc
+          #CXX: musl-g++
+        run: |
+          git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli.git
+          cd ngx_brotli/deps/brotli
+          
+          echo "Brotli_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ Brotli_Commit_ID: $(git rev-parse HEAD) "
+          
+          mkdir out && cd out
+          
+          # 核心修复：强制注入并卡死 gcc 编译器，并生成纯静态库，改用架构优化指令对齐（如 -march）
+          cmake \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -m64 -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" \
+            -DCMAKE_CXX_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -m64 -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" \
+            -DCMAKE_INSTALL_PREFIX=../installed ..
+                  
+          #-DCMAKE_C_FLAGS="-static -O2 -ffunction-sections -fdata-sections" \  
+          #cmake --build . --config Release --target brotlienc
+          
+          # 注意：编译所有需要的静态组件（brotlienc、brotlicommon、brotlidec）
+          #cmake --build . --config Release --target brotlienc brotlicommon
+          cmake --build . --config Release --target brotlienc brotlicommon brotlidec
+          
+          # 核心修复：执行安装，把所有生成的 .a 静态库和头文件统一释放到 deps/brotli/installed/ 目录
+          #cmake --install .
+          
+          # 改为只安装库组件（lib）和开发头文件组件（development），完美绕过未编译的 brotli 命令行工具
+          cmake --install . --component lib
+          cmake --install . --component development
+          
+          cd ../../../..
+          
+          
+          # 4. 【验证对齐】
+          echo "=== 检查 brotli 静态提纯产物 ==="
+          echo "🔍 [诊断] find 检索到的所有 静态库 (.a) 及其物理体积细节："
+          find ${{ github.workspace }}/ngx_brotli -name "*.a" | xargs -r ls -lh
+
+          echo "🔍 [诊断] find 检索到的所有 符合格式的 头文件 (.h) 及其时间戳细节："
+          find ${{ github.workspace }}/ngx_brotli -name "*.h" | grep "/include/brotli/" | xargs -r ls -lh
+                            
+          # ================= 完美归拢：直接将 find 产物灌入后续指定的绝对路径 =================
+          BROTLI_INC="${{ github.workspace }}/ngx_brotli/deps/brotli/installed/include"
+          BROTLI_LIB="${{ github.workspace }}/ngx_brotli/deps/brotli/installed/lib"
+          
+          # 【核心修复】创建完全对齐的标准化目录树（头文件根目录下必须含有 brotli 文件夹）
+          mkdir -p "${BROTLI_LIB}"
+          mkdir -p "${BROTLI_INC}/brotli"
+
+          echo "🚀 [提纯] 正在将 find 定位到的静态库复制到标准库目录..."
+          find ${{ github.workspace }}/ngx_brotli -name "*.a" -exec cp -f {} "${BROTLI_LIB}/" \;
+
+          echo "🚀 [提纯] 正在将 find 定位到的头文件复制到标准头文件子目录..."
+          # 【核心修复】将头文件精准物理灌入 include/brotli/ 中，确保 #include <brotli/encode.h> 能够被 Nginx 识别
+          find ${{ github.workspace }}/ngx_brotli -name "*.h" | grep "/include/brotli/" | xargs -I {} cp -f {} "${BROTLI_INC}/brotli/"
+
+          # ================= 最终核对与环境变量导出 =================
+          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
+          echo "📂 静态库列表："
+          ls -lh "${BROTLI_LIB}/"
+          echo "📂 头文件列表（必须在 brotli 子目录下）："
+          ls -lh "${BROTLI_INC}/brotli/"
+         
+          
+      #- name: zlib-cf
+        #run: |
+          #git clone -b gcc.amd64  https://github.com/cloudflare/zlib.git zlib-cf
+          #cd zlib-cf
+          #make -f Makefile.in distclean
+          #git checkout .
+          #git pull
+          #git submodule update --init --recursive
+          #cd ..
+      
+      - name: pcre2 [Static build with CMake]
+        env:
+          #CC: musl-gcc
+          #CXX: musl-g++
+        run: |
+          # 1. 克隆源码并同步子模块（JIT 引擎依赖 SLJIT 子模块，必须加 --recurse-submodules）
+          git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
+          cd pcre2
+          
+          echo "Pcre2_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ Pcre2_Commit_ID: $(git rev-parse HEAD) "
+          
+          mkdir out && cd out
+          
+          # 2. 核心优化配置：
+          #    - -DPCRE2_SUPPORT_JIT=ON: 开启硬核 JIT 即时编译支持，大幅压榨正则匹配性能
+          #    - -DBUILD_SHARED_LIBS=OFF: 强行关闭动态库，只生成静态库 (libpcre2-8.a)
+          #    - 直接注入之前拼接并格式化好的全局环境变量（包含 -march 和优化选项）
+          cmake \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DPCRE2_SUPPORT_JIT=ON \
+            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" \
+            -DCMAKE_INSTALL_PREFIX=../installed ..
+          
+          # 3. 编译并提取安装到 ../installed/ 目录下
+          cmake --build . --config Release -j$(nproc)
+          cmake --install .
+          cd ../..
+          
+          # ================= 最终核对与环境变量导出 =================
+          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
+          echo "📂 静态库列表："
+          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/lib"
+          echo "📂 头文件列表："
+          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/include"
+      
+      - name: zlib-ng [Pre-configure zlib-ng for Musl]
+        env:
+          #CC: musl-gcc
+          #CXX: musl-g++
+        run: |
+          git clone https://github.com/zlib-ng/zlib-ng.git
+          cd zlib-ng
+
+          echo "zlib-ng_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ zlib-ng_Commit_ID: $(git rev-parse HEAD) "
+          
+          mkdir out && cd out
+          
+          # 核心优化说明：
+          # 1. -DZLIB_COMPAT=ON：使 API 兼容原生 zlib，输出 libz.a，供 Nginx 直接调用
+          # 2. -DBUILD_SHARED_LIBS=OFF：关闭动态库，只编译静态库
+          # 3. -DWITH_RUNTIME_CPU_DETECTION=OFF：既然已经选定了 march 架构，关闭运行时探测可以减少代码分支，提升执行能效
+          # 4. 传入 -DBUILD_TESTING=OFF 关闭测试，确保 100% 不会触发任何 C++ 编译链
+          # 5. 完美继承你环境中的全局优化参数
+          cmake \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DZLIB_COMPAT=ON \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_TESTING=OFF \
+            -DWITH_GTEST=OFF \
+            -DWITH_RUNTIME_CPU_DETECTION=OFF \
+            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" \
+            -DCMAKE_INSTALL_PREFIX=../installed ..
+          
+          # 编译所有组件并打包安装到 ../installed/ 目录下
+          cmake --build . --config Release -j$(nproc)
+          cmake --install .
+          
+          cd ../..
+          
+          # ================= 最终核对与环境变量导出 =================
+          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
+          echo "📂 静态库列表："
+          ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/lib"
+          echo "📂 头文件列表："
+          ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/include"
+      
+      - name: zstd [Static build & install with musl-gcc]
+        run: |
+          # 1. 检出轻量化源码并清理旧缓存
+          git clone --depth 1 https://github.com/facebook/zstd.git
+          cd zstd
+
+          echo "zstd_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ zstd_Commit_ID: $(git rev-parse HEAD) "
+          
+          make clean
+          
+          # 2. 核心全并行物理熔炼：
+          #    - 指定纯 C 环境参数，强行切断系统动态库依赖
+          #    - 完美继承你环境中的全局优化参数变量
+          
+          #make -j"$(nproc)" \
+          #   CC=musl-gcc \
+          #   HAVE_PTHREAD=0 \
+          #   ZSTD_MULTITHREAD=0 \
+          #   BUILD_SHARED=no \
+          #   CFLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC"
+             
+          
+          # 修改后的 实现多线程
+          make -j"$(nproc)" \
+             CC=gcc \
+             BUILD_SHARED=no \
+             CFLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC"
+
+          
+          # 3. 【核心修复点】进入核心库子目录进行精准提纯安装：
+          #    - 顶级 Makefile 不支持静态安装目标，必须进入 lib/ 目录
+          #    - 显式传递 BUILD_SHARED=no，make 会智能跳过动态库，仅提纯提取静态组件
+          cd lib
+          make install \
+             PREFIX=$(pwd)/../installed \
+             BUILD_SHARED=no
+          cd ../..
+          
+          # ================= 最终核对与环境变量导出 =================
+          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
+          echo "📂 静态库列表："
+          ls -lh "$GITHUB_WORKSPACE/zstd/installed/lib"
+          echo "📂 头文件列表："
+          ls -lh "$GITHUB_WORKSPACE/zstd/installed/include"
+       
+      - name: zstd-nginx-module
+        env:
+          #CC: musl-gcc
+          #CXX: musl-g++
+        run: |
+          git clone https://github.com/tokers/zstd-nginx-module.git
+          #cd zstd-nginx-module
+          
+          #cd ..
+ 
+      - name: libmaxminddb [Static build with CMake]
+        env:
+          #CC: musl-gcc
+          #CXX: musl-g++
+        run: |
+          git clone --recursive -j8 https://github.com/maxmind/libmaxminddb.git
+          cd libmaxminddb
+
+          echo "libmaxminddb_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ libmaxminddb_Commit_ID: $(git rev-parse HEAD) "
+          
+          mkdir out && cd out
+          
+          # 核心优化说明：
+          # 1. -DBUILD_SHARED_LIBS=OFF：强行关闭动态库，只生成静态库 (libmaxminddb.a)
+          # 2. 直接注入之前已经拼接并格式化好的全局环境变量 $CFLAGS
+          cmake \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" \
+            -DCMAKE_CXX_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" \
+            -DCMAKE_INSTALL_PREFIX=../installed ..
+          
+          # 编译所有组件并打包安装到 ../installed/ 目录下
+          cmake --build . --config Release -j$(nproc)
+          cmake --install .
+          cd ../..
+
+          # ================= 最终核对与环境变量导出 =================
+          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
+          echo "📂 静态库列表："
+          ls -lh "$GITHUB_WORKSPACE/libmaxminddb/installed/lib"
+          echo "📂 头文件列表："
+          ls -lh "$GITHUB_WORKSPACE/libmaxminddb/installed/include"
+       
+      - name: geoip2-nginx-module
+        run: |
+          git clone https://github.com/leev/ngx_http_geoip2_module.git
+          
+      
+      - name: Build time
+        run: |
+          echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+    
+      - name: build
+        env:
+          #CC: musl-gcc
+          #CXX: musl-g++
+        
+        run: |
+          git clone https://github.com/nginx/nginx.git
+          cd nginx
+          #git reset --hard a4100450c067009158299ad69adb7d6f5e775943
+          echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
+          
+          # 顺畅拉取并应用 Dynamic TLS Record 补丁          
+          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
+               
+          #cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
+          #patch --verbose -p1 < nginx_dynamic_tls_records.patch
+          
+          #cp ../nginx.patch ./nginx.patch
+          #patch -p1 < nginx.patch
+          
+          #cp ../option.patch ./option.patch
+          #patch -p1 < option.patch
+          
+          #wget https://raw.githubusercontent.com/rosebe/patch/master/nginx.patch
+          #patch -p1 < nginx.patch
+          
+          # 1. 设置 musl 编译器环境
+          #export CC=musl-gcc
+          #export CXX=musl-gcc
+          
+          # 强制清理之前可能残留的缓存
+          #make clean || true
+          rm -rf objs/
+                    
+        
+          # ================== 【核心路径修复点】 ==================
+          # 强制对齐各个静态组件的绝对路径，确保 musl-gcc 在多级子构建目录中仍能精准定位
+          ZLIB_INC="../zlib-ng/installed/include"
+          ZLIB_LIB="../zlib-ng/installed/lib"
+          
+          BROTLI_INC="../ngx_brotli/deps/brotli/installed/include"
+          BROTLI_LIB="../ngx_brotli/deps/brotli/installed/lib"
+          
+          MMDB_INC="../libmaxminddb/installed/include"
+          MMDB_LIB="../libmaxminddb/installed/lib"
+          
+                    
+          # 核心对齐点：OpenSSL 在 Ubuntu/Debian 静态全编译时会输出到 lib64，我们同时引入 lib 和 lib64 防御
+          OPENSSL_INC="../openssl/installed/include"
+          OPENSSL_LIB="-L../openssl/installed/lib -L../openssl/installed/lib64"
+
+          PCRE2_INC="../pcre2/installed/include"
+          PCRE2_LIB="../pcre2/installed/lib"
+          
+          # Zstd 路径环境注入，供第三方扩展模块在后台读取
+          # 必须将我们刚才辛苦编译出的静态 zstd 路径作为环境变量强制喂给 zstd-nginx-module
+          # 否则该模块会因为找不到头文件或尝试寻找 glibc 的系统库而崩溃
+          # 使用绝对路径
+          export ZSTD_INC="$GITHUB_WORKSPACE/zstd/installed/include"
+          export ZSTD_LIB="$GITHUB_WORKSPACE/zstd/installed/lib"
+          # ========================================================
+          
+          # 高级分块与循环展开优化
+          #CC_OPT_SECTIONS="-funroll-loops -ffunction-sections -fdata-sections"
+          
+          # 编译器参数：开启分块，为链接器垃圾回收做准备
+          CC_OPT_SECTIONS="-ffunction-sections -fdata-sections"
+          # 链接器参数：开启无用 section 垃圾回收
+          LD_OPT_GC="-Wl,--gc-sections"
+                    
+          # 动态无缝剥离拼接出纯净单行参数，彻底解决 GCC 15 空格格式化报错
+          CC_OPTIONS="-static -static-libgcc -I${ZLIB_INC} -I${BROTLI_INC} -I${MMDB_INC} -I${OPENSSL_INC} -I${PCRE2_INC} -I${ZSTD_INC} -march=${{ env.OPTIMIZED_MARCH }} ${{ env.OPTIMIZED_FLAGS }} ${CC_OPT_SECTIONS}"
+          #LD_OPTIONS="-static -L${ZLIB_LIB} -L${BROTLI_LIB} -L${MMDB_LIB} ${OPENSSL_LIB} -L${PCRE2_LIB} -L${ZSTD_LIB} -lssl -lcrypto -lz -lpcre2-8 -lmaxminddb -lzstd -lpthread -ldl -lrt -march=${{ env.OPTIMIZED_MARCH }} ${{ env.OPTIMIZED_FLAGS }} ${LD_OPT_GC}"
+          LD_OPTIONS="-static -L${ZLIB_LIB} -L${BROTLI_LIB} -L${MMDB_LIB} ${OPENSSL_LIB} -L${PCRE2_LIB} -L${ZSTD_LIB} -lssl -lcrypto -lz -lpcre2-8 -lmaxminddb -lzstd -march=${{ env.OPTIMIZED_MARCH }} ${{ env.OPTIMIZED_FLAGS }} ${LD_OPT_GC}"
+         
+          #--crossbuild=linux:x86_64 \
+                    
+          # Nginx 默认的 ngx_feature_run=no 应该只做链接测试
+          # 原理解析： Nginx 的 auto/feature 脚本在运行前会检查对应的 ngx_res_xxxx 变量。
+          # 如果提前注入为 yes，它会直接跳过运行测试程序的步骤，认为该特征完全可用，从而完美闭环。
+          #export ngx_res_ZStandard_static_library=yes
+          #export ngx_res_ZStandard_dynamic_library=yes
+          
+          ./auto/configure \
+            --with-cc=gcc \
+            --prefix=/etc/nginx \
+            --sbin-path=/usr/sbin/nginx \
+            --modules-path=/usr/lib64/nginx/modules \
+            --conf-path=/etc/nginx/nginx.conf \
+            --error-log-path=/var/log/nginx/error.log \
+            --http-log-path=/var/log/nginx/access.log \
+            --pid-path=/var/run/nginx.pid \
+            --lock-path=/var/run/nginx.lock \
+            --http-client-body-temp-path=/var/cache/nginx/client_temp \
+            --http-proxy-temp-path=/var/cache/nginx/proxy_temp \
+            --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
+            --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp \
+            --http-scgi-temp-path=/var/cache/nginx/scgi_temp \
+            --user=nginx \
+            --group=nginx \
+            --with-compat \
+            --with-threads \
+            --with-http_addition_module \
+            --with-http_auth_request_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_mp4_module \
+            --with-http_random_index_module \
+            --with-http_realip_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_ssl_module \
+            --with-http_stub_status_module \
+            --with-http_sub_module \
+            --with-http_v2_module \
+            --with-mail \
+            --with-mail_ssl_module \
+            --with-stream \
+            --with-stream_realip_module \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --add-module=../zstd-nginx-module \
+            --add-module=../ngx_brotli \
+            --add-module=../ngx_http_geoip2_module \
+            --with-http_v3_module \
+            --build="Commit_ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe_add_patch: Dynamic TLS Record support. Zlib: zlib-ng. GeoIP2: Enable. QUIC: Enable. Compiler: gcc. arch: ${{ env.OPTIMIZED_MARCH }}. flags: ${{ env.OPTIMIZED_FLAGS }}. build on: ${{ env.nginx_build_time }}" \
+            --with-cc-opt="${CC_OPTIONS}" \
+            --with-ld-opt="${LD_OPTIONS}" || (cat objs/autoconf.err && exit 1) # 核心：失败时立刻打印致命原因
+            
+                      
+          #--with-zlib-opt='--static' \
+          #--with-cc-opt='-static -static-libgcc -march=x86-64 -O2'
+
+          #make -j$(nproc --all)
+          make -j$(nproc --all) || (cat objs/autoconf.err && exit 1)
+          #make || (cat objs/autoconf.err && exit 1)
+          echo ""
+          echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
+          echo ""
+          tree -d
+      
+              
+      - name: Strip and Package
+        run: |
+          NGINX_TEST="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+          
+          echo "🛠️ 瘦身前："
+          ls -lh $NGINX_TEST
+          # 1. 瘦身：去除调试符号，文件将从 19M 通常能缩减到 5-8M 左右
+          strip --strip-all $NGINX_TEST
+          # 验证优化后的最终体积        
+          echo "🛠️ 瘦身后："
+          ls -lh $NGINX_TEST
+                  
+          # 归档上传
+          # tar -czvf nginx-pgo-v4-static.tar.gz -C nginx/objs nginx
+          
+
+          echo "==== ELF 类型 ===="
+          readelf -h "$NGINX_TEST" | grep -E 'Class:|Machine:|Type:'
+          
+          echo "==== 动态段检查 ===="
+          if readelf -l "$NGINX_TEST" | grep -q 'INTERP'; then
+              echo "❌ 存在 ELF INTERP 段"
+              exit 1
+          else
+              echo "✅ 不存在 ELF INTERP 段"
+          fi
+          
+          if readelf -d "$NGINX_TEST" 2>&1 | grep -q '(NEEDED)'; then
+              echo "❌ 存在 DT_NEEDED 动态库依赖"
+              exit 1
+          else
+              echo "✅ 未发现 DT_NEEDED 动态库依赖"
+          fi
+              
+          echo "==== 验证运行 ===="
+          "$NGINX_TEST" -V
+
+      
+      
+      - name: Verify
+        run: |
+          # 验证是否为静态链接
+          # 验证生成的二进制文件是否为“纯静态”
+          echo "==== 验证二进制文件状态 ===="
+          #chmod +x /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          file /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          ldd /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx || echo "Static binary confirmed"
+            
+      
+      - name: Comprehensive Stress Testing
+        if: ${{ github.event.inputs.Binaries_Stress_Testing == 'true' }}
+        run: |
+            # 1. [变量拼接协议 - 防裁剪]
+            G_RAW="https://raw.githubusercontent.com"
+            G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
+            G_HOST="https://github.com"
+            G_REPO="/grpc/grpc-go.git"
+                      
+            NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+            G_WORKSPACE="${{ github.workspace }}"
+
+            # 2. [环境整备]
+            #sudo apt-get update
+            sudo apt-get install -y wrk openssl bc
+            rm -rf /tmp/pgo-run /tmp/pgo-data
+            rm -rf /tmp/pgo-data/*
+            mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
+            chmod -R 777 /tmp/pgo-run /tmp/pgo-data
+
+            # 2.1 [生成 NGINX HTTPS 使用的证书}
+            sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+                  -keyout /tmp/pgo-run/server.key \
+                  -out /tmp/pgo-run/server.crt \
+                  -subj "/CN=example.com"
+            
+            # 2.2 【关键补丁】将证书文件的权限拉满，防止 Nginx 启动时报 "Permission denied" 错误
+            sudo chmod 777 /tmp/pgo-run/server.key /tmp/pgo-run/server.crt
+            
+            # 3. [资源分发]
+            cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
+            cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+            curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/pgo-run/proto/helloworld.proto
+
+            go install "github.com/bojand/ghz/cmd/ghz@latest"
+            export PATH=$PATH:$(go env GOPATH)/bin
+
+            # --- [启动 gRPC 桩服务] ---
+            git clone --depth 1 "${G_HOST}${G_REPO}"
+            cd grpc-go/examples/helloworld/greeter_server
+            go run main.go > /tmp/grpc-backend.log 2>&1 &
+            BACKEND_PID=$!
+            cd -
+
+            # [重要：等待 gRPC 后端就绪]
+            echo ">> 等待 gRPC 后端 (50051) 就绪..."
+            timeout 30s bash -c 'until nc -z localhost 50051; do sleep 1; done' || echo "⚠️ gRPC 后端启动超时"
+           
+
+            # 检测配置文件
+            sudo chmod +x /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+            #sudo /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -V
+            #sudo /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -t -c /tmp/pgo-run/pgo.conf
+            
+            # ==========================================
+            # 5. [插桩启动 - 强力覆盖全局指令以规避环境冲突崩溃]
+            # ==========================================
+            echo ">> 正在全面清理并放开 PGO 数据目录权限..."
+            sudo rm -rf /tmp/pgo-data/*
+            sudo chmod -R 777 /tmp/pgo-data /tmp/pgo-run
+            
+            # 创建系统兜底用户，防止 Nginx 核心加载由于残留硬编码触发异常
+            sudo useradd -M -s /usr/sbin/nologin nginx 2>/dev/null || true
+            
+            # 1. 清理旧状态，防止读取到上次运行的 PID
+            sudo killall -9 nginx 2>/dev/null || true
+            sudo rm -f /tmp/pgo-run/nginx.pid
+            sudo rm -f /tmp/nginx-start.log
+            sudo rm -f /tmp/pgo-run/logs/error.log
+            sudo mkdir -p /tmp/pgo-data
+            sudo chmod -R 777 /tmp/pgo-data /tmp/pgo-run
+
+            # 2. 确认当前二进制及 CPU 指令集
+            echo "===== Binary ====="
+            sha256sum "$NGINX_BIN"
+            file "$NGINX_BIN"
+
+            echo "===== CPU flags ====="
+            grep -m1 '^flags' /proc/cpuinfo || true
+
+            # 3. 先做配置检查
+            sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf || {
+                echo "NGINX 配置检查失败"
+                exit 1
+            }
+
+            # 4. 前台模式启动，保留 GCC 插桩环境
+            #sudo env \
+            #    GCOV_PREFIX=/tmp/pgo-data \
+            #    GCOV_PREFIX_STRIP=0 \
+            #    "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #    > /tmp/nginx-start.log 2>&1 &
+
+            sudo env "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+                 > /tmp/nginx-start.log 2>&1 &
+            
+            
+            NGINX_LAUNCH_PID=$!
+
+            # 5. 等待 PID 文件出现，并验证 master 是否存活
+            NGINX_PID=""
+            for i in $(seq 1 20); do
+                if [ -s /tmp/pgo-run/nginx.pid ]; then
+                    candidate=$(cat /tmp/pgo-run/nginx.pid)
+                    if sudo kill -0 "$candidate" 2>/dev/null; then
+                        NGINX_PID="$candidate"
+                        break
+                    fi
+                fi
+
+                if ! kill -0 "$NGINX_LAUNCH_PID" 2>/dev/null; then
+                    break
+                fi
+
+                sleep 0.25
+            done
+
+            # 6. 诊断真实状态，而不是只依赖 pgrep
+            echo "===== Process status ====="
+            ps -eo pid,ppid,stat,args | grep '[n]ginx' || true
+
+            echo "===== Startup log ====="
+            cat /tmp/nginx-start.log 2>/dev/null || true
+
+            echo "===== NGINX error log ====="
+            cat /tmp/pgo-run/logs/error.log 2>/dev/null || true
+
+            if [ -z "$NGINX_PID" ]; then
+                echo "NGINX master 未能正常启动"
+                exit 1
+            fi
+
+            # 7. 闪退守卫：同时检查 master 和实际 worker
+            sleep 5
+
+            if ! sudo kill -0 "$NGINX_PID" 2>/dev/null; then
+                echo "NGINX master 已退出"
+                cat /tmp/nginx-start.log 2>/dev/null || true
+                cat /tmp/pgo-run/logs/error.log 2>/dev/null || true
+                exit 1
+            fi
+
+            echo "NGINX master 仍然存活：PID=$NGINX_PID"
+            ps -eo pid,ppid,stat,args | grep '[n]ginx' || true
+
+            echo ">> 🎉 Nginx 运行稳定，守护通过。"
+
+
+            # Nginx 配置文件
+            echo ">> ✅ Nginx 配置文件... "
+            #sudo "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf \
+            #         -g "user root; daemon off; worker_processes auto;" \
+            #         -T 
+            
+            sudo "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf -T
+            echo "✅ Nginx 配置文件结束"         
+
+
+            # 6. [精准压测]
+            # A. Stream 压测优化
+            echo ">>📊 Stream 压测优化..."
+            # 精准训练方案：让 wrk 发起真正的 TLS 握手敲击 8443
+            # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练
+            wrk -t2 -c200 -d12s --latency --timeout 2s \
+                -H "Host: example.com" \
+                https://127.0.0.1:8443
+
+           
+                       
+            # B. gRPC (增加容错，避免 502 导致 Action 中断)
+            echo ">>📊 gRPC Stream 压测优化..."
+            
+            #ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+            #    --call helloworld.Greeter.SayHello \
+            #    -n 1000 127.0.0.1:8081 || true
+            
+            # 优化方案：为了让 GCC 记录下高并发下的线程锁（Mutex）、内存分配（malloc/free）以及连接池复用逻辑，应当增加总请求量，并显式指定高并发数（-c）和持续时间（-z）。
+            # -c 100: 保持 100 个并发连接
+            # -n 20000: 提升到 2 万次请求，确保压测持续一定时间
+            # --timeout 2s: 避免慢请求卡住
+            ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+                --call helloworld.Greeter.SayHello \
+                -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
+
+            # C. HTTP/WS (指向 8081)
+            echo ">>📊 HTTP/WebSocket 压测优化 ..."
+           
+            #wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
+            
+            # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
+            # 这样可以让 CPU 满载，以便 GCC 精准捕捉热点函数
+            #wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" --latency http://127.0.0.1:8081
+            wrk -t2 -c200 -d12s --latency \
+                -H "Upgrade: websocket" \
+                -H "Connection: Upgrade" \
+                -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+                -H "Sec-WebSocket-Version: 13" \
+                 http://127.0.0.1:8081/ws
+
+            
+            # D： 强力训练 HTTP 模块的 TLS 解密与证书处理逻辑
+            # ==================================================
+            echo ">>📊 正在强力训练 HTTP 模块的 TLS/HTTPS 状态机 压测优化..."
+            # 使用 wrk 直接压测 8082 端口，由于走的是标准的 HTTPS，Nginx 的 TLS 握手、解密、ASN1 别名解析等核心热点代码将被完全灌满！
+            wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
+                # ├─ -t2       : 使用 2 个操作系统线程（Threads）
+                # ├─ -c100     : 维持 100 个总并发连接（Connections）
+                # ├─ -d5s      : 压测持续时间为 5 秒（Duration）
+                # ├─ --latency : 测试结束后，打印出详细的延迟统计分布（如 p50、p99 等）
+                # └─ https://...: 目标服务的 HTTPS 地址（端口 8082），触发 TLS 握手和加解密逻辑
+
+            
+            
+            
+            # 7. [收割数据]
+            echo ">> 📦 正在触发 Profile 数据落盘..."
+
+            # --- 1. 处理 Nginx ---
+            if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
+                # 💡 技巧：如果你的 Profile 插件依附于 Worker，可以直接向所有 worker 发送信号
+                # 如果插件本身支持通过 Master 统一收集，则保留对 Master 发送
+                echo ">> ⏳ 正在通知 Nginx (PID: $NGINX_PID) 发送优雅退出信号..."
+                sudo kill -QUIT "$NGINX_PID" || true
+            fi
+
+            # --- 2. 处理 后端进程 ---
+            if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+                echo ">> ⏳ 正在通知 Backend (PID: $BACKEND_PID) 优雅退出以落盘..."
+                # 默认 kill 就是发送 SIGTERM(15)，通常这也是 Go/Java/Node 等后端触发 Profile 落盘的钩子信号
+                kill -15 "$BACKEND_PID" || true
+            fi
+
+            # --- 3. 动态等待落盘完成（最长等待 15 秒，写完立刻往下走） ---
+            echo ">> 🔍 正在等待所有进程完全退出并完成磁盘写入..."
+            MAX_WAIT=30  # 升级为最大允许等待 15 秒（30 * 0.5s）
+            for ((i=1; i<=MAX_WAIT; i++)); do
+                NGINX_ALIVE=0
+                BACKEND_ALIVE=0
+
+                # 检查 Nginx 是否还在写盘（进程是否存在）
+                if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then NGINX_ALIVE=1; fi
+                # 检查 后端 是否还在写盘
+                if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then BACKEND_ALIVE=1; fi
+
+                # 如果两个都退出了，说明落盘成功，直接跳出循环
+                if [ $NGINX_ALIVE -eq 0 ] && [ $BACKEND_ALIVE -eq 0 ]; then
+                    echo ">> ✅ 所有进程已优雅退出，数据落盘完成。"
+                    break
+                fi
+
+                sleep 0.5
+            done
+
+            # --- 4. 兜底校验 ---
+            if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
+                echo "⚠️ 警告：Nginx 在 15 秒内未完成退出，可能卡在落盘阶段，执行强制中断！"
+                sudo kill -9 "$NGINX_PID" 2>/dev/null || true
+            fi
+
+            if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+                echo "⚠️ 警告：Backend 在 15 秒内未完成退出，执行强制中断！"
+                kill -9 "$BACKEND_PID" 2>/dev/null || true
+            fi
+            
+            echo "===== Kernel crash records ====="
+            sudo dmesg -T 2>/dev/null \
+                | grep -Ei 'nginx|segfault|general protection|illegal instruction|oom|killed process' \
+                | tail -n 80 || true
+
+            echo "===== Memory ====="
+            free -h
+
+            echo "===== Runtime CPU ====="
+            lscpu
+
+                 
+      
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: nginx-quic
+          path: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          
+      # Setting an environment variable
+      # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
+      
+      - name: Set variables
+        id: step_one
+        shell: bash
+        run: |
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} with-zlib-ng and ngx_http_geoip2_module Compiler-gcc arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=nginx-quic v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          
+          echo "TAG_NAME: "
+          echo "${{ env.TAG_NAME }}"
+          echo ""
+          echo "RELEASE_NAME: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo ""
+          echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
+          echo ""
+          echo "GITHUB_ENV 1: "$GITHUB_ENV
+          echo "GITHUB_ENV 2: ${GITHUB_ENV} "       
+                  
+      - name: Use variables
+        id: step_two
+        shell: bash
+        run: |
+          echo "ASSET_NAME: "
+          echo "${{ env.ASSET_NAME }}"
+          echo ""
+          echo "TAG_NAME: "
+          echo "${{ env.TAG_NAME }}"
+          echo ""
+          echo "RELEASE_NAME: "
+          echo "${{ env.RELEASE_NAME }}"
+          echo ""
+          echo "GITHUB_WORKFLOW is:" $GITHUB_WORKFLOW
+          echo ""
+          echo "GITHUB_ENV 1: "$GITHUB_ENV
+          echo "GITHUB_ENV 2: ${GITHUB_ENV} "
+          echo ""
+          echo "GITHUB_EVENT_NAME is:" $github.event_name
+          
+          echo "$(tree -d)"
+          
+      
+      - name: Upload binaries to release
+        #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
+        uses: svenstaro/upload-release-action@2.11.5
+        #if: github.event_name == 'release'
+        if: ${{ github.event.inputs.Upload_Binaries_To_Release == 'true' }}
+        with:
+          repo_token: ${{ github.token }}          
+          tag: ${{ env.TAG_NAME }}
+          release_name: ${{ env.RELEASE_NAME }}
+          asset_name: ${{ env.ASSET_NAME }}
+          file: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          body: |
+            ### Nginx-Quic Build  
+            ### Happy play !
+            - **Commit ID**: ${{ env.Commit_ID }}
+            - **Openssl_Commit_ID**: ${{ env.Openssl_Commit_ID }}
+            - **Optimization**: PGO (Profile Guided Optimization) Disabled.
+            - **Arch**: ${{ env.OPTIMIZED_MARCH }}
+            - **Static**: All libraries linked statically.
+            - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
+          overwrite: true
+          file_glob: false   
