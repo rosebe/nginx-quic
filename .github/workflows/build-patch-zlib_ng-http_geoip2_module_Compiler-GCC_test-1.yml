@@ -991,8 +991,10 @@ jobs:
 
 
             # 6. [精准压测]
+            echo ""
+            echo "👉  精准压测开始  👈 "
             # A. Stream 压测优化
-            echo ">>📊 Stream 压测优化..."
+            echo ">>📊 A. Stream 压测优化..."
             # 精准训练方案：让 wrk 发起真正的 TLS 握手敲击 8443
             # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练
             wrk -t2 -c200 -d12s --latency --timeout 2s \
@@ -1000,9 +1002,9 @@ jobs:
                 https://127.0.0.1:8443
 
            
-                       
+            echo ""           
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
-            echo ">>📊 gRPC Stream 压测优化..."
+            echo ">>📊 B. gRPC 压测优化..."
             
             #ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
             #    --call helloworld.Greeter.SayHello \
@@ -1016,8 +1018,9 @@ jobs:
                 --call helloworld.Greeter.SayHello \
                 -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
 
+            echo ""
             # C. HTTP/WS (指向 8081)
-            echo ">>📊 HTTP/WebSocket 压测优化 ..."
+            echo ">>📊 C. HTTP/WebSocket 压测优化 ..."
            
             #wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
             
@@ -1031,10 +1034,10 @@ jobs:
                 -H "Sec-WebSocket-Version: 13" \
                  http://127.0.0.1:8081/ws
 
-            
+            echo ""
             # D： 强力训练 HTTP 模块的 TLS 解密与证书处理逻辑
             # ==================================================
-            echo ">>📊 正在强力训练 HTTP 模块的 TLS/HTTPS 状态机 压测优化..."
+            echo ">>📊 D. HTTP 模块的 TLS/HTTPS 状态机 压测优化..."
             # 使用 wrk 直接压测 8082 端口，由于走的是标准的 HTTPS，Nginx 的 TLS 握手、解密、ASN1 别名解析等核心热点代码将被完全灌满！
             wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
                 # ├─ -t2       : 使用 2 个操作系统线程（Threads）
