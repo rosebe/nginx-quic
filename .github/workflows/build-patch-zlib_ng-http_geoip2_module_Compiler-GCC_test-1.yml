@@ -516,7 +516,7 @@ jobs:
             -DPCRE2_SUPPORT_JIT=ON \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DPCRE2_BUILD_STATIC_WITH_PIC=ON \
-            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" \
+            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" \
             -DCMAKE_INSTALL_PREFIX=../installed ..
           
           
