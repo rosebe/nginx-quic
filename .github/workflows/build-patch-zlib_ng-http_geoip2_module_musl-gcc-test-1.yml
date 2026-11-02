@@ -635,7 +635,7 @@ jobs:
           echo "Commit_ID=$(git rev-parse --short HEAD) " >> $GITHUB_ENV
           
           # 顺畅拉取并应用 Dynamic TLS Record 补丁          
-          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/main/nginx_dynamic_tls_records.patch | patch --verbose -p 1
+          curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
                     
           #cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
           #patch --verbose -p1 < nginx_dynamic_tls_records.patch
