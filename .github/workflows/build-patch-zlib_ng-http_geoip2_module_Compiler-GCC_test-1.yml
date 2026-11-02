@@ -439,47 +439,7 @@ jobs:
           #git pull
           #git submodule update --init --recursive
           #cd ..
-      
-      - name: pcre2 [Static build with CMake]
-        env:
-          #CC: musl-gcc
-          #CXX: musl-g++
-          Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
-        run: |
-          # 1. 克隆源码并同步子模块（JIT 引擎依赖 SLJIT 子模块，必须加 --recurse-submodules）
-          git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
-          cd pcre2
-          
-          echo "Pcre2_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          echo "✅ Pcre2_Commit_ID: $(git rev-parse HEAD) "
-          
-          mkdir out && cd out
-          
-          # 2. 核心优化配置：
-          #    - -DPCRE2_SUPPORT_JIT=ON: 开启硬核 JIT 即时编译支持，大幅压榨正则匹配性能
-          #    - -DBUILD_SHARED_LIBS=OFF: 强行关闭动态库，只生成静态库 (libpcre2-8.a)
-          #    - 直接注入之前拼接并格式化好的全局环境变量（包含 -march 和优化选项）
-          cmake \
-            -DCMAKE_C_COMPILER=gcc \
-            -DCMAKE_CXX_COMPILER=g++ \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DPCRE2_SUPPORT_JIT=ON \
-            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" \
-            -DCMAKE_INSTALL_PREFIX=../installed ..
-          
-          # 3. 编译并提取安装到 ../installed/ 目录下
-          cmake --build . --config Release -j$(nproc)
-          cmake --install .
-          cd ../..
-          
-          # ================= 最终核对与环境变量导出 =================
-          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
-          echo "📂 静态库列表："
-          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/lib"
-          echo "📂 头文件列表："
-          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/include"
-      
+     
       - name: zlib-ng [Pre-configure zlib-ng for gcc]
         env:
           #CC: musl-gcc
@@ -524,6 +484,50 @@ jobs:
           ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/lib"
           echo "📂 头文件列表："
           ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/include"
+      
+      - name: pcre2 [Static build with CMake]
+        env:
+          #CC: musl-gcc
+          #CXX: musl-g++
+          Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+        run: |
+          # 1. 克隆源码并同步子模块（JIT 引擎依赖 SLJIT 子模块，必须加 --recurse-submodules）
+          git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
+          cd pcre2
+          
+          echo "Pcre2_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ Pcre2_Commit_ID: $(git rev-parse HEAD) "
+          
+          mkdir out && cd out
+          
+          # 2. 核心优化配置：
+          #    - -DPCRE2_SUPPORT_JIT=ON: 开启硬核 JIT 即时编译支持，大幅压榨正则匹配性能
+          #    - -DBUILD_SHARED_LIBS=OFF: 强行关闭动态库，只生成静态库 (libpcre2-8.a)
+          #    - 直接注入之前拼接并格式化好的全局环境变量（包含 -march 和优化选项）
+          cmake \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DZLIB_INCLUDE_DIR=$GITHUB_WORKSPACE/zlib-ng/installed/include \
+            -DZLIB_LIBRARY=$GITHUB_WORKSPACE/zlib-ng/installed/lib/libz.a \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DPCRE2_SUPPORT_JIT=ON \
+            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" \
+            -DCMAKE_INSTALL_PREFIX=../installed ..
+          
+          
+          
+          # 3. 编译并提取安装到 ../installed/ 目录下
+          cmake --build . --config Release -j$(nproc)
+          cmake --install .
+          cd ../..
+          
+          # ================= 最终核对与环境变量导出 =================
+          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
+          echo "📂 静态库列表："
+          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/lib"
+          echo "📂 头文件列表："
+          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/include"
       
       - name: zstd [Static build & install with gcc]
         env:
