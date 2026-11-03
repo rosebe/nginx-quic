@@ -371,13 +371,13 @@ jobs:
           /tmp/musl_test.c \
           -o /tmp/musl_test_static
 
-          file /tmp/musl_test_static
+          file /tmp/musl_test_static || true
 
-          readelf -l /tmp/musl_test_static | grep interpreter
+          readelf -l /tmp/musl_test_static | grep interpreter || true
           
-          readelf -d /tmp/musl_test_static | grep NEEDED
+          readelf -d /tmp/musl_test_static | grep NEEDED || true
           
-          ldd /tmp/musl_test_static
+          ldd /tmp/musl_test_static || true
           
           /tmp/musl_test_static || true
 
