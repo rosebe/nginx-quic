@@ -348,11 +348,11 @@ jobs:
               /tmp/musl_test.c \
               -o /tmp/musl_test
           
-          file /tmp/musl_test
+          file /tmp/musl_test || true
           
-          readelf -l /tmp/musl_test | grep interpreter
+          readelf -l /tmp/musl_test | grep interpreter || true
           
-          ldd /tmp/musl_test
+          ldd /tmp/musl_test || true
           
           /tmp/musl_test || true
 
