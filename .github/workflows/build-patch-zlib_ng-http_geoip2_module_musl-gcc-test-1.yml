@@ -381,6 +381,20 @@ jobs:
           
           /tmp/musl_test_static || true
 
+          echo "===== 检查 ELF 动态依赖 ====="
+          readelf -d /tmp/musl_test_static
+          
+          echo "===== 检查符号 ====="
+          nm /tmp/musl_test_static | grep -E \
+          '__libc_start_main|__init_libc|__libc_start_init|__stdio_init' \
+          || true
+          
+          echo "===== 检查 musl 静态库 ====="
+          find /usr/lib /lib \
+              -path '*musl*' \
+              -name 'libc.a' \
+              -print 2>/dev/null
+
       - name: musl_kernel_test  [ musl_kernel_test.c build with musl-gcc]
         env: 
           CC: musl-gcc
