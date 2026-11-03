@@ -1000,6 +1000,11 @@ jobs:
             wrk -t2 -c200 -d12s --latency --timeout 2s \
                 -H "Host: example.com" \
                 https://127.0.0.1:8443
+            sleep 10
+            echo "📑 十秒后 二次压测"
+            wrk -t2 -c200 -d12s --latency --timeout 2s \
+                -H "Host: example.com" \
+                https://127.0.0.1:8443
 
            
             echo ""           
@@ -1017,6 +1022,11 @@ jobs:
             ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
                 --call helloworld.Greeter.SayHello \
                 -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
+            sleep 10
+            echo "📑 十秒后 二次压测"
+            ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
+                --call helloworld.Greeter.SayHello \
+                -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true 
 
             echo ""
             # C. HTTP/WS (指向 8081)
@@ -1027,6 +1037,14 @@ jobs:
             # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
             # 这样可以让 CPU 满载，以便 GCC 精准捕捉热点函数
             #wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" --latency http://127.0.0.1:8081
+            wrk -t2 -c200 -d12s --latency \
+                -H "Upgrade: websocket" \
+                -H "Connection: Upgrade" \
+                -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+                -H "Sec-WebSocket-Version: 13" \
+                 http://127.0.0.1:8081/ws
+            sleep 10
+            echo "📑 十秒后 二次压测"
             wrk -t2 -c200 -d12s --latency \
                 -H "Upgrade: websocket" \
                 -H "Connection: Upgrade" \
@@ -1045,8 +1063,10 @@ jobs:
                 # ├─ -d5s      : 压测持续时间为 5 秒（Duration）
                 # ├─ --latency : 测试结束后，打印出详细的延迟统计分布（如 p50、p99 等）
                 # └─ https://...: 目标服务的 HTTPS 地址（端口 8082），触发 TLS 握手和加解密逻辑
+            sleep 10
+            echo "📑 十秒后 二次压测"
+            wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
 
-            
             echo ""
             sleep 5
             echo ">> ⏳ 通知 Nginx (PID: $NGINX_PID) 发送退出信号..."
