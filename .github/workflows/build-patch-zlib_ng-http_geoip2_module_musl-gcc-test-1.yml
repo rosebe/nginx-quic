@@ -608,7 +608,7 @@ jobs:
             -DBUILD_TESTING=OFF \
             -DWITH_GTEST=OFF \
             -DWITH_RUNTIME_CPU_DETECTION=OFF \
-            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC -flto=auto" \
+            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" \
             -DCMAKE_INSTALL_PREFIX=../installed ..
           
           # 编译所有组件并打包安装到 ../installed/ 目录下
@@ -651,7 +651,7 @@ jobs:
           make -j"$(nproc)" \
              CC=musl-gcc \
              BUILD_SHARED=no \
-             CFLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC -flto=auto"
+             CFLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC"
 
           
           # 3. 【核心修复点】进入核心库子目录进行精准提纯安装：
