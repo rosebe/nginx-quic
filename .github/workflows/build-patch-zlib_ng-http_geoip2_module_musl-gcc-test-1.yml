@@ -293,9 +293,28 @@ jobs:
            # 验证两个编译器是否正常工作
            musl-gcc --version
            #musl-g++ --version
-      
-      
-           
+           echo ">> 检查 musl 的头文件搜索路径"
+           musl-gcc -v -E -x c /dev/null
+           echo ">> 检查安装的头文件"
+           echo ">> musl-dev 安装的头文件"
+           dpkg -L musl-dev | grep '/include/'
+           echo ">> linux-libc-dev 安装的头文件"
+           dpkg -L linux-libc-dev | grep '/include/'
+           echo ">> 确认架构"
+           echo ">> musl-gcc 架构"
+           musl-gcc -dumpmachine
+           echo ">> gcc 架构"
+           gcc -dumpmachine
+           echo ">> 检查软链接是否正确"
+           for d in linux asm asm-generic; do
+                p="/usr/include/x86_64-linux-musl/$d"       
+                if [ -e "$p" ]; then
+                    echo "[OK] $p -> $(readlink -f "$p")"
+                else
+                    echo "[MISSING] $p"
+                fi
+           done
+       
       - name: openssl-4.1 [Static build with musl-gcc]
         env: 
           CC: musl-gcc
