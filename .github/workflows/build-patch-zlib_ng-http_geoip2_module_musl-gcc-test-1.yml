@@ -314,7 +314,80 @@ jobs:
                     echo "[MISSING] $p"
                 fi
            done
-       
+           
+           echo ">> 检查 musl-gcc 链接配置"
+           musl-gcc -print-file-name=libc.so
+           musl-gcc -print-file-name=libc.a
+           
+           echo ">> 检查 musl specs"
+           musl-gcc -dumpspecs | grep -E 'dynamic-linker|musl|ld-musl'
+
+      - name: musl_test  [ musl_test.c build with musl-gcc]
+        env: 
+          CC: musl-gcc
+          CXX: musl-g++
+        run: |     
+          cat > /tmp/musl_test.c <<'EOF'
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+          #include <pthread.h>
+          #include <sys/epoll.h>
+          #include <linux/version.h>
+          
+          int main(void)
+          {
+              printf("Hello from musl!\n");
+              printf("Kernel headers: %d\n", LINUX_VERSION_CODE);
+              printf("Pointer size: %zu\n", sizeof(void *));
+              return 0;
+          }
+          EOF
+          
+          musl-gcc -O2 -Wall -Wextra \
+              /tmp/musl_test.c \
+              -o /tmp/musl_test
+          
+          file /tmp/musl_test
+          
+          readelf -l /tmp/musl_test | grep interpreter
+          
+          ldd /tmp/musl_test
+          
+          /tmp/musl_test         
+          
+          #预期动态解释器类似：
+          #/lib/ld-musl-x86_64.so.1
+          #如果显示：
+          #/lib64/ld-linux-x86-64.so.2
+          #说明最终程序使用的是 glibc 动态加载器，而不是预期的 musl 加载器
+
+      - name: musl_kernel_test  [ musl_kernel_test.c build with musl-gcc]
+        env: 
+          CC: musl-gcc
+          CXX: musl-g++
+        run: |
+          cat > /tmp/musl_kernel_test.c <<'EOF'
+          #include <linux/types.h>
+          #include <linux/if.h>
+          #include <linux/if_tun.h>
+          #include <linux/netlink.h>
+          #include <linux/rtnetlink.h>
+          #include <linux/bpf.h>
+          #include <linux/futex.h>
+          #include <asm/unistd.h>
+          #include <asm-generic/errno.h>
+          
+          int main(void)
+          {
+              return 0;
+          }
+          EOF
+          
+          musl-gcc -c /tmp/musl_kernel_test.c \
+              -o /tmp/musl_kernel_test.o
+                    
+      
       - name: openssl-4.1 [Static build with musl-gcc]
         env: 
           CC: musl-gcc
