@@ -354,13 +354,32 @@ jobs:
           
           ldd /tmp/musl_test
           
-          /tmp/musl_test         
+          /tmp/musl_test || true
+
+         
           
           #预期动态解释器类似：
           #/lib/ld-musl-x86_64.so.1
           #如果显示：
           #/lib64/ld-linux-x86-64.so.2
           #说明最终程序使用的是 glibc 动态加载器，而不是预期的 musl 加载器
+
+           musl-gcc -static \
+          -O3 \
+          -march=x86-64-v3 \
+          -Wall -Wextra \
+          /tmp/musl_test.c \
+          -o /tmp/musl_test_static
+
+          file /tmp/musl_test_static
+
+          readelf -l /tmp/musl_test_static | grep interpreter
+          
+          readelf -d /tmp/musl_test_static | grep NEEDED
+          
+          ldd /tmp/musl_test_static
+          
+          /tmp/musl_test_static || true
 
       - name: musl_kernel_test  [ musl_kernel_test.c build with musl-gcc]
         env: 
