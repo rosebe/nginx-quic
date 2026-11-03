@@ -394,6 +394,23 @@ jobs:
               -path '*musl*' \
               -name 'libc.a' \
               -print 2>/dev/null
+          
+          echo "===== ELF 类型 ====="
+          readelf -h /tmp/musl_test_static
+          
+          echo "===== 程序解释器 ====="
+          readelf -l /tmp/musl_test_static | grep INTERP \
+              || echo "No dynamic interpreter"
+          
+          echo "===== 动态依赖 ====="
+          readelf -d /tmp/musl_test_static \
+              || echo "No dynamic section"
+          
+          echo "===== libc 来源 ====="
+          musl-gcc -print-file-name=libc.a
+          
+          echo "===== 编译器配置 ====="
+          musl-gcc -v      
 
       - name: musl_kernel_test  [ musl_kernel_test.c build with musl-gcc]
         env: 
