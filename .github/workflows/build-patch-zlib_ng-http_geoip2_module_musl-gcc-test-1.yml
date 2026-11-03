@@ -469,7 +469,7 @@ jobs:
                          --openssldir=$(pwd)/installed/ssl \
                          CC=musl-gcc \
                          ${{ env.OPTIMIZED_FLAGS }} \
-                         -march=${{ env.OPTIMIZED_MARCH }}
+                         -march=${{ env.OPTIMIZED_MARCH }} -fPIC
                     
           # 3. 编译并提纯释放到 openssl/installed/ 目录下（跳过庞大文档生成）
           make -j"$(nproc)"
@@ -518,6 +518,7 @@ jobs:
             -DCMAKE_CXX_COMPILER=musl-g++ \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -m64 -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" \
             -DCMAKE_CXX_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -m64 -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" \
             -DCMAKE_INSTALL_PREFIX=../installed ..
@@ -608,6 +609,7 @@ jobs:
             -DBUILD_TESTING=OFF \
             -DWITH_GTEST=OFF \
             -DWITH_RUNTIME_CPU_DETECTION=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" \
             -DCMAKE_INSTALL_PREFIX=../installed ..
           
@@ -679,7 +681,7 @@ jobs:
           #cd zstd-nginx-module
           
           #cd ..
- 
+
       - name: pcre2 [Static build with CMake]
         env:
           CC: musl-gcc
@@ -720,7 +722,7 @@ jobs:
           ls -lh "$GITHUB_WORKSPACE/pcre2/installed/lib"
           echo "📂 头文件列表："
           ls -lh "$GITHUB_WORKSPACE/pcre2/installed/include"
-      
+
       - name: libmaxminddb [Static build with CMake]
         env:
           CC: musl-gcc
@@ -913,7 +915,7 @@ jobs:
               
       - name: Strip and Package
         run: |
-          NGINX_TEST="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+          NGINX_TEST="$GITHUB_WORKSPACE/nginx/objs/nginx"
           
           echo "🛠️ 瘦身前："
           ls -lh $NGINX_TEST
@@ -955,9 +957,9 @@ jobs:
           # 验证是否为静态链接
           # 验证生成的二进制文件是否为“纯静态”
           echo "==== 验证二进制文件状态 ===="
-          #chmod +x /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
-          file /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
-          ldd /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx || echo "Static binary confirmed"
+          #chmod +x $GITHUB_WORKSPACE/nginx/objs/nginx
+          file $GITHUB_WORKSPACE/nginx/objs/nginx
+          ldd $GITHUB_WORKSPACE/nginx/objs/nginx || echo "Static binary confirmed"
             
       
       - name: Comprehensive Stress Testing
@@ -969,7 +971,7 @@ jobs:
             G_HOST="https://github.com"
             G_REPO="/grpc/grpc-go.git"
                       
-            NGINX_BIN="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
+            NGINX_BIN="$GITHUB_WORKSPACE/nginx/objs/nginx"
             G_WORKSPACE="${{ github.workspace }}"
 
             # 2. [环境整备]
@@ -1010,9 +1012,9 @@ jobs:
            
 
             # 检测配置文件
-            sudo chmod +x /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
-            #sudo /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -V
-            #sudo /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx -t -c /tmp/pgo-run/pgo.conf
+            sudo chmod +x $GITHUB_WORKSPACE/nginx/objs/nginx
+            #sudo $GITHUB_WORKSPACE/nginx/objs/nginx -V
+            #sudo $GITHUB_WORKSPACE/nginx/objs/nginx -t -c /tmp/pgo-run/pgo.conf
             
             # ==========================================
             # 5. [插桩启动 - 强力覆盖全局指令以规避环境冲突崩溃]
@@ -1119,8 +1121,10 @@ jobs:
 
 
             # 6. [精准压测]
+            echo ""
+            echo "👉  精准压测开始  👈 "
             # A. Stream 压测优化
-            echo ">>📊 Stream 压测优化..."
+            echo ">>📊 A. Stream 压测优化..."
             # 精准训练方案：让 wrk 发起真正的 TLS 握手敲击 8443
             # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练
             wrk -t2 -c200 -d12s --latency --timeout 2s \
@@ -1128,9 +1132,9 @@ jobs:
                 https://127.0.0.1:8443
 
            
-                       
+            echo ""           
             # B. gRPC (增加容错，避免 502 导致 Action 中断)
-            echo ">>📊 gRPC Stream 压测优化..."
+            echo ">>📊 B. gRPC 压测优化..."
             
             #ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
             #    --call helloworld.Greeter.SayHello \
@@ -1144,8 +1148,9 @@ jobs:
                 --call helloworld.Greeter.SayHello \
                 -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
 
+            echo ""
             # C. HTTP/WS (指向 8081)
-            echo ">>📊 HTTP/WebSocket 压测优化 ..."
+            echo ">>📊 C. HTTP/WebSocket 压测优化 ..."
            
             #wrk -t2 -c50 -d10s -H "Upgrade: websocket" -H "Connection: Upgrade" http://127.0.0.1:8081
             
@@ -1159,10 +1164,10 @@ jobs:
                 -H "Sec-WebSocket-Version: 13" \
                  http://127.0.0.1:8081/ws
 
-            
+            echo ""
             # D： 强力训练 HTTP 模块的 TLS 解密与证书处理逻辑
             # ==================================================
-            echo ">>📊 正在强力训练 HTTP 模块的 TLS/HTTPS 状态机 压测优化..."
+            echo ">>📊 D. HTTP 模块的 TLS/HTTPS 状态机 压测优化..."
             # 使用 wrk 直接压测 8082 端口，由于走的是标准的 HTTPS，Nginx 的 TLS 握手、解密、ASN1 别名解析等核心热点代码将被完全灌满！
             wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
                 # ├─ -t2       : 使用 2 个操作系统线程（Threads）
@@ -1172,11 +1177,15 @@ jobs:
                 # └─ https://...: 目标服务的 HTTPS 地址（端口 8082），触发 TLS 握手和加解密逻辑
 
             
-            
-            
+            echo ""
+            sleep 5
+            echo ">> ⏳ 通知 Nginx (PID: $NGINX_PID) 发送退出信号..."
+            echo ">> ⏳ 通知 Backend (PID: $BACKEND_PID) 发送退出信号..."
+            echo ""
+            echo ""
             # 7. [收割数据]
             echo ">> 📦 正在触发 Profile 数据落盘..."
-
+            echo ""
             # --- 1. 处理 Nginx ---
             if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
                 # 💡 技巧：如果你的 Profile 插件依附于 Worker，可以直接向所有 worker 发送信号
@@ -1240,7 +1249,7 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: nginx-quic
-          path: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          path: $GITHUB_WORKSPACE/nginx/objs/nginx
           
       # Setting an environment variable
       # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
@@ -1249,9 +1258,9 @@ jobs:
         id: step_one
         shell: bash
         run: |
-          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} with-zlib-ng and ngx_http_geoip2_module Compiler-musl-gcc arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}" >> $GITHUB_ENV
-          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
-          echo "RELEASE_NAME=nginx-quic v$(grep "#define NGINX_VERSION" /home/runner/work/nginx-quic/nginx-quic/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" $GITHUB_WORKSPACE/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} with-zlib-ng and ngx_http_geoip2_module Compiler-musl-gcc arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" $GITHUB_WORKSPACE/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=nginx-quic v$(grep "#define NGINX_VERSION" $GITHUB_WORKSPACE/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
           
           echo "TAG_NAME: "
           echo "${{ env.TAG_NAME }}"
@@ -1297,14 +1306,14 @@ jobs:
           tag: ${{ env.TAG_NAME }}
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
-          file: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          file: $GITHUB_WORKSPACE/nginx/objs/nginx
           body: |
             ### Nginx-Quic Build  
             ### Happy play !
             - **Commit ID**: ${{ env.Commit_ID }}
             - **Openssl_Commit_ID**: ${{ env.Openssl_Commit_ID }}
             - **Optimization**: PGO (Profile Guided Optimization) Disabled.
-            - **Arch**: X86-64-v4(AVX512) X86-64-v3(AVX2)
+            - **Arch**: x86-64-v4(avx512)  x86-64-v3(avx2)
             - **Static**: All libraries linked statically.
             - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
           overwrite: true
