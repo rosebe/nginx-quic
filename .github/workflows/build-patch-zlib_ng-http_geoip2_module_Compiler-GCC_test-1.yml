@@ -276,8 +276,8 @@ jobs:
       - name: Setup GCC environment
         uses: egor-tensin/setup-gcc@v2.0.3
         with:
-         #version: 16
-         version: latest
+         version: 16
+         #version: latest
          platform: x64 
       
       #- name: Install musl toolchain
