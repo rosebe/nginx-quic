@@ -436,8 +436,7 @@ jobs:
           
           musl-gcc -c /tmp/musl_kernel_test.c \
               -o /tmp/musl_kernel_test.o
-                    
-      
+
       - name: openssl-4.1 [Static build with musl-gcc]
         env: 
           CC: musl-gcc
@@ -1244,15 +1243,15 @@ jobs:
             echo "===== Runtime CPU ====="
             lscpu
 
-      - name: GITHUB_WORKSPACE_LOCAL=$GITHUB_WORKSPACE 
+      - name: set GITHUB_WORKSPACE_ENV=$GITHUB_WORKSPACE 
         run: |
             echo ""
-            echo "GITHUB_WORKSPACE_LOCAL=$GITHUB_WORKSPACE" >> $GITHUB_ENV               
+            echo "GITHUB_WORKSPACE_ENV=$GITHUB_WORKSPACE" >> $GITHUB_ENV
       
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: nginx-quic
-          path: ${{ env.GITHUB_WORKSPACE_LOCAL }}/nginx/objs/nginx
+          path: ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/objs/nginx
           
       # Setting an environment variable
       # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
@@ -1261,9 +1260,9 @@ jobs:
         id: step_one
         shell: bash
         run: |
-          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_LOCAL }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} with-zlib-ng and ngx_http_geoip2_module Compiler-musl-gcc arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}" >> $GITHUB_ENV
-          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_LOCAL }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
-          echo "RELEASE_NAME=nginx-quic v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_LOCAL }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} with-zlib-ng and ngx_http_geoip2_module Compiler-musl-gcc arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=nginx-quic v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
           
           echo "TAG_NAME: "
           echo "${{ env.TAG_NAME }}"
@@ -1297,8 +1296,7 @@ jobs:
           echo "GITHUB_EVENT_NAME is:" $github.event_name
           
           echo "$(tree -d)"
-          
-      
+
       - name: Upload binaries to release
         #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
         uses: svenstaro/upload-release-action@2.11.5
@@ -1309,7 +1307,7 @@ jobs:
           tag: ${{ env.TAG_NAME }}
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
-          file: ${{ env.GITHUB_WORKSPACE_LOCAL }}/nginx/objs/nginx
+          file: ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/objs/nginx
           body: |
             ### Nginx-Quic Build  
             ### Happy play !
@@ -1320,4 +1318,4 @@ jobs:
             - **Static**: All libraries linked statically.
             - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
           overwrite: true
-          file_glob: false   
+          file_glob: false
