@@ -274,9 +274,10 @@ jobs:
           echo "✅ OPTIMIZED_FLAGS: ${{ env.OPTIMIZED_FLAGS }}"
       
       - name: Setup GCC environment
-        uses: egor-tensin/setup-gcc@v2.0
+        uses: egor-tensin/setup-gcc@v2.0.3
         with:
-         version: 16
+         #version: 16
+         version: latest
          platform: x64 
       
       #- name: Install musl toolchain
