@@ -1314,7 +1314,7 @@ jobs:
             - **Commit ID**: ${{ env.Commit_ID }}
             - **Openssl_Commit_ID**: ${{ env.Openssl_Commit_ID }}
             - **Optimization**: PGO (Profile Guided Optimization) Disabled.
-            - **Arch**: x86-64-v4(avx512)  x86-64-v3(avx2)
+            - **Arch**: x86-64-v4(avx512)  x86-64-v3(avx2) x86-64-v2
             - **Static**: All libraries linked statically.
             - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
           overwrite: true
