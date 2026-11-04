@@ -296,6 +296,15 @@ jobs:
            #musl-g++ --version
            gcc --version || true
            g++ --version || true
+           echo ">> gcc 确认架构"
+           gcc -dumpmachine
+           
+           echo ">> 检查 gcc 链接配置"
+           gcc -print-file-name=glibc.so
+           gcc -print-file-name=glibc.a
+           echo ">> 检查 gcc specs"
+           gcc -dumpspecs
+
            
       - name: openssl-4.1 [Static build with gcc]
         env: 
@@ -472,7 +481,7 @@ jobs:
             -DWITH_GTEST=OFF \
             -DWITH_RUNTIME_CPU_DETECTION=OFF \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" \
+            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" \
             -DCMAKE_INSTALL_PREFIX=../installed ..
           
           # 编译所有组件并打包安装到 ../installed/ 目录下
@@ -487,54 +496,7 @@ jobs:
           ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/lib"
           echo "📂 头文件列表："
           ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/include"
-      
-      - name: pcre2 [Static build with CMake]
-        env:
-          #CC: musl-gcc
-          #CXX: musl-g++
-          Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
-        run: |
-          # 1. 克隆源码并同步子模块（JIT 引擎依赖 SLJIT 子模块，必须加 --recurse-submodules）
-          git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
-          cd pcre2
-          
-          echo "Pcre2_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          echo "✅ Pcre2_Commit_ID: $(git rev-parse HEAD) "
-          
-          mkdir out && cd out
-          
-          # 2. 核心优化配置：
-          #    - -DPCRE2_SUPPORT_JIT=ON: 开启硬核 JIT 即时编译支持，大幅压榨正则匹配性能
-          #    - -DBUILD_SHARED_LIBS=OFF: 强行关闭动态库，只生成静态库 (libpcre2-8.a)
-          #    - 直接注入之前拼接并格式化好的全局环境变量（包含 -march 和优化选项）
-          cmake \
-            -DCMAKE_C_COMPILER=gcc \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DZLIB_INCLUDE_DIR=$GITHUB_WORKSPACE/zlib-ng/installed/include \
-            -DZLIB_LIBRARY=$GITHUB_WORKSPACE/zlib-ng/installed/lib/libz.a \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DPCRE2_SUPPORT_JIT=ON \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DPCRE2_BUILD_STATIC_WITH_PIC=ON \
-            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" \
-            -DCMAKE_INSTALL_PREFIX=../installed ..
-          
-          
-          # -DPCRE2_BUILD_STATIC_WITH_PIC=ON \  # 👈 必须追加这行，强制 PCRE2 在静态库中启用 PIC
-          # -DPCRE2_BUILD_STATIC_WITH_PIC=ON 是 PCRE2 源码特有的自定义参数。它专门用来强行把 -fPIC 注入到那张日志表里的 Build static libs 核心静态库中
-          
-          # 3. 编译并提取安装到 ../installed/ 目录下
-          cmake --build . --config Release -j$(nproc)
-          cmake --install .
-          cd ../..
-          
-          # ================= 最终核对与环境变量导出 =================
-          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
-          echo "📂 静态库列表："
-          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/lib"
-          echo "📂 头文件列表："
-          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/include"
-      
+
       - name: zstd [Static build & install with gcc]
         env:
           zstd_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
@@ -589,7 +551,54 @@ jobs:
           #cd zstd-nginx-module
           
           #cd ..
- 
+
+      - name: pcre2 [Static build with CMake]
+        env:
+          #CC: musl-gcc
+          #CXX: musl-g++
+          Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+        run: |
+          # 1. 克隆源码并同步子模块（JIT 引擎依赖 SLJIT 子模块，必须加 --recurse-submodules）
+          git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
+          cd pcre2
+          
+          echo "Pcre2_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ Pcre2_Commit_ID: $(git rev-parse HEAD) "
+          
+          mkdir out && cd out
+          
+          # 2. 核心优化配置：
+          #    - -DPCRE2_SUPPORT_JIT=ON: 开启硬核 JIT 即时编译支持，大幅压榨正则匹配性能
+          #    - -DBUILD_SHARED_LIBS=OFF: 强行关闭动态库，只生成静态库 (libpcre2-8.a)
+          #    - 直接注入之前拼接并格式化好的全局环境变量（包含 -march 和优化选项）
+          cmake \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DZLIB_INCLUDE_DIR=$GITHUB_WORKSPACE/zlib-ng/installed/include \
+            -DZLIB_LIBRARY=$GITHUB_WORKSPACE/zlib-ng/installed/lib/libz.a \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DPCRE2_SUPPORT_JIT=ON \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DPCRE2_BUILD_STATIC_WITH_PIC=ON \
+            -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" \
+            -DCMAKE_INSTALL_PREFIX=../installed ..
+          
+          
+          # -DPCRE2_BUILD_STATIC_WITH_PIC=ON \  # 👈 必须追加这行，强制 PCRE2 在静态库中启用 PIC
+          # -DPCRE2_BUILD_STATIC_WITH_PIC=ON 是 PCRE2 源码特有的自定义参数。它专门用来强行把 -fPIC 注入到那张日志表里的 Build static libs 核心静态库中
+          
+          # 3. 编译并提取安装到 ../installed/ 目录下
+          cmake --build . --config Release -j$(nproc)
+          cmake --install .
+          cd ../..
+          
+          # ================= 最终核对与环境变量导出 =================
+          echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
+          echo "📂 静态库列表："
+          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/lib"
+          echo "📂 头文件列表："
+          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/include"
+
       - name: libmaxminddb [Static build with CMake]
         env:
           #CC: musl-gcc
@@ -652,7 +661,7 @@ jobs:
           
           # 顺畅拉取并应用 Dynamic TLS Record 补丁          
           curl https://raw.githubusercontent.com/rosebe/nginx-quic/refs/heads/master/nginx_dynamic_tls_records.patch | patch --verbose -p 1
-               
+
           #cp ../nginx_dynamic_tls_records.patch ./nginx_dynamic_tls_records.patch
           #patch --verbose -p1 < nginx_dynamic_tls_records.patch
           
@@ -766,7 +775,7 @@ jobs:
             --add-module=../ngx_brotli \
             --add-module=../ngx_http_geoip2_module \
             --with-http_v3_module \
-            --build="Commit_ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe_add_patch: Dynamic TLS Record support. Zlib: zlib-ng. GeoIP2: Enable. QUIC: Enable. Compiler: gcc. arch: ${{ env.OPTIMIZED_MARCH }}. flags: ${{ env.OPTIMIZED_FLAGS }}. build on: ${{ env.nginx_build_time }}" \
+            --build="Commit_ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe_add_patch: Dynamic TLS Record support. Zlib: zlib-ng. GeoIP2: Enable. QUIC: Enable. Compiler: GCC. arch: ${{ env.OPTIMIZED_MARCH }}. flags: ${{ env.OPTIMIZED_FLAGS }}. build on: ${{ env.nginx_build_time }}" \
             --with-cc-opt="${CC_OPTIONS}" \
             --with-ld-opt="${LD_OPTIONS}" || (cat objs/autoconf.err && exit 1) # 核心：失败时立刻打印致命原因
             
@@ -1068,12 +1077,27 @@ jobs:
             wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
 
             echo ""
+            # 8. 闪退守卫：同时检查 master 和实际 worker
             sleep 5
+
+            if ! sudo kill -0 "$NGINX_PID" 2>/dev/null; then
+                echo "NGINX master 已退出"
+                cat /tmp/nginx-start.log 2>/dev/null || true
+                cat /tmp/pgo-run/logs/error.log 2>/dev/null || true
+                exit 1
+            fi
+
+            echo "NGINX master 仍然存活：PID=$NGINX_PID"
+            ps -eo pid,ppid,stat,args | grep '[n]ginx' || true
+
+            echo ">> 🎉 Nginx 运行稳定，压测通过。"
+            echo "🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉"
+            echo ""
             echo ">> ⏳ 通知 Nginx (PID: $NGINX_PID) 发送退出信号..."
             echo ">> ⏳ 通知 Backend (PID: $BACKEND_PID) 发送退出信号..."
             echo ""
             echo ""
-            # 7. [收割数据]
+            # 9. [收割数据]
             echo ">> 📦 正在触发 Profile 数据落盘..."
             echo ""
             # --- 1. 处理 Nginx ---
@@ -1184,8 +1208,7 @@ jobs:
           echo "GITHUB_EVENT_NAME is:" $github.event_name
           
           echo "$(tree -d)"
-          
-      
+
       - name: Upload binaries to release
         #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
         uses: svenstaro/upload-release-action@2.11.5
@@ -1203,8 +1226,8 @@ jobs:
             - **Commit ID**: ${{ env.Commit_ID }}
             - **Openssl_Commit_ID**: ${{ env.Openssl_Commit_ID }}
             - **Optimization**: PGO (Profile Guided Optimization) Disabled.
-            - **Arch**:  X86-64-v4(avx512) X86-64-v3(avx2)
+            - **Arch**: x86-64-v4(avx512)  x86-64-v3(avx2) x86-64-v2
             - **Static**: All libraries linked statically.
             - **Modules**: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
           overwrite: true
-          file_glob: false   
+          file_glob: false
