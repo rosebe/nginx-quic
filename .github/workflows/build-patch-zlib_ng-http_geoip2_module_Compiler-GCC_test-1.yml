@@ -1228,7 +1228,7 @@ jobs:
             - ** Openssl_Commit_ID**: ${{ env.Openssl_Commit_ID }}
             - ** Brotli_Commit_ID: ${{ env.Brotli_Commit_ID }}
             - ** zlib-ng_Commit_ID: ${{ env.zlib-ng_Commit_ID }}
-            - ** zstd_Commit_ID: ${{ zstd_Commit_ID }}
+            - ** zstd_Commit_ID: ${{ env.zstd_Commit_ID }}
             - ** Pcre2_Commit_ID: ${{ env.Pcre2_Commit_ID }}
             - ** libmaxminddb_Commit_ID: ${{ env.libmaxminddb_Commit_ID }}
             - ** Optimization**: PGO (Profile Guided Optimization) Disabled.
