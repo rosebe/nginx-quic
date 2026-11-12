@@ -494,9 +494,9 @@ jobs:
           # ================= 最终核对与环境变量导出 =================
           echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
           echo "📂 静态库列表："
-          ls -lh "$GITHUB_WORKSPACE/openssl/installed/lib64"
+          ls -lh "${{ github.workspace }}/openssl/installed/lib64"
           echo "📂 头文件列表："
-          ls -lh "$GITHUB_WORKSPACE/openssl/installed/include/openssl"
+          ls -lh "${{ github.workspace }}/openssl/installed/include/openssl"
    
       - name: brotli [Static build with musl-gcc]
         env:
@@ -621,9 +621,9 @@ jobs:
           # ================= 最终核对与环境变量导出 =================
           echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
           echo "📂 静态库列表："
-          ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/lib"
+          ls -lh "${{ github.workspace }}/zlib-ng/installed/lib"
           echo "📂 头文件列表："
-          ls -lh "$GITHUB_WORKSPACE/zlib-ng/installed/include"
+          ls -lh "${{ github.workspace }}/zlib-ng/installed/include"
       
       - name: zstd [Static build & install with musl-gcc]
         run: |
@@ -667,9 +667,9 @@ jobs:
           # ================= 最终核对与环境变量导出 =================
           echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
           echo "📂 静态库列表："
-          ls -lh "$GITHUB_WORKSPACE/zstd/installed/lib"
+          ls -lh "${{ github.workspace }}/zstd/installed/lib"
           echo "📂 头文件列表："
-          ls -lh "$GITHUB_WORKSPACE/zstd/installed/include"
+          ls -lh "${{ github.workspace }}/zstd/installed/include"
        
       - name: zstd-nginx-module
         env:
@@ -703,8 +703,8 @@ jobs:
             -DCMAKE_C_COMPILER=musl-gcc \
             -DCMAKE_CXX_COMPILER=musl-g++ \
             -DCMAKE_BUILD_TYPE=Release \
-            -DZLIB_INCLUDE_DIR=$GITHUB_WORKSPACE/zlib-ng/installed/include \
-            -DZLIB_LIBRARY=$GITHUB_WORKSPACE/zlib-ng/installed/lib/libz.a \
+            -DZLIB_INCLUDE_DIR=${{ github.workspace }}/zlib-ng/installed/include \
+            -DZLIB_LIBRARY=${{ github.workspace }}/zlib-ng/installed/lib/libz.a \
             -DBUILD_SHARED_LIBS=OFF \
             -DPCRE2_SUPPORT_JIT=ON \
             -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" \
@@ -718,9 +718,9 @@ jobs:
           # ================= 最终核对与环境变量导出 =================
           echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
           echo "📂 静态库列表："
-          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/lib"
+          ls -lh "${{ github.workspace }}/pcre2/installed/lib"
           echo "📂 头文件列表："
-          ls -lh "$GITHUB_WORKSPACE/pcre2/installed/include"
+          ls -lh "${{ github.workspace }}/pcre2/installed/include"
 
       - name: libmaxminddb [Static build with CMake]
         env:
@@ -755,9 +755,9 @@ jobs:
           # ================= 最终核对与环境变量导出 =================
           echo "✅ === 检查最终生成的干净挂挂载点目录结构 ==="
           echo "📂 静态库列表："
-          ls -lh "$GITHUB_WORKSPACE/libmaxminddb/installed/lib"
+          ls -lh "${{ github.workspace }}/libmaxminddb/installed/lib"
           echo "📂 头文件列表："
-          ls -lh "$GITHUB_WORKSPACE/libmaxminddb/installed/include"
+          ls -lh "${{ github.workspace }}/libmaxminddb/installed/include"
        
       - name: geoip2-nginx-module
         run: |
@@ -826,8 +826,8 @@ jobs:
           # 必须将我们刚才辛苦编译出的静态 zstd 路径作为环境变量强制喂给 zstd-nginx-module
           # 否则该模块会因为找不到头文件或尝试寻找 glibc 的系统库而崩溃
           # 使用绝对路径
-          export ZSTD_INC="$GITHUB_WORKSPACE/zstd/installed/include"
-          export ZSTD_LIB="$GITHUB_WORKSPACE/zstd/installed/lib"
+          export ZSTD_INC="${{ github.workspace }}/zstd/installed/include"
+          export ZSTD_LIB="${{ github.workspace }}/zstd/installed/lib"
           # ========================================================
           
           # 高级分块与循环展开优化
@@ -914,7 +914,7 @@ jobs:
               
       - name: Strip and Package
         run: |
-          NGINX_TEST="$GITHUB_WORKSPACE/nginx/objs/nginx"
+          NGINX_TEST="${{ github.workspace }}/nginx/objs/nginx"
           
           echo "🛠️ 瘦身前："
           ls -lh $NGINX_TEST
@@ -956,9 +956,9 @@ jobs:
           # 验证是否为静态链接
           # 验证生成的二进制文件是否为“纯静态”
           echo "==== 验证二进制文件状态 ===="
-          #chmod +x $GITHUB_WORKSPACE/nginx/objs/nginx
-          file $GITHUB_WORKSPACE/nginx/objs/nginx
-          ldd $GITHUB_WORKSPACE/nginx/objs/nginx || echo "Static binary confirmed"
+          #chmod +x ${{ github.workspace }}/nginx/objs/nginx
+          file ${{ github.workspace }}/nginx/objs/nginx
+          ldd ${{ github.workspace }}/nginx/objs/nginx || echo "Static binary confirmed"
             
       
       - name: Comprehensive Stress Testing
@@ -970,7 +970,7 @@ jobs:
             G_HOST="https://github.com"
             G_REPO="/grpc/grpc-go.git"
                       
-            NGINX_BIN="$GITHUB_WORKSPACE/nginx/objs/nginx"
+            NGINX_BIN="${{ github.workspace }}/nginx/objs/nginx"
             G_WORKSPACE="${{ github.workspace }}"
 
             # 2. [环境整备]
@@ -1011,9 +1011,9 @@ jobs:
            
 
             # 检测配置文件
-            sudo chmod +x $GITHUB_WORKSPACE/nginx/objs/nginx
-            #sudo $GITHUB_WORKSPACE/nginx/objs/nginx -V
-            #sudo $GITHUB_WORKSPACE/nginx/objs/nginx -t -c /tmp/pgo-run/pgo.conf
+            sudo chmod +x ${{ github.workspace }}/nginx/objs/nginx
+            #sudo ${{ github.workspace }}/nginx/objs/nginx -V
+            #sudo ${{ github.workspace }}/nginx/objs/nginx -t -c /tmp/pgo-run/pgo.conf
             
             # ==========================================
             # 5. [插桩启动 - 强力覆盖全局指令以规避环境冲突崩溃]
@@ -1277,16 +1277,11 @@ jobs:
 
             echo "===== Runtime CPU ====="
             lscpu
-
-      - name: set GITHUB_WORKSPACE_ENV=$GITHUB_WORKSPACE 
-        run: |
-            echo ""
-            echo "GITHUB_WORKSPACE_ENV=$GITHUB_WORKSPACE" >> $GITHUB_ENV
-      
+     
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: nginx-quic
-          path: ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/objs/nginx
+          path: ${{ github.workspace }}/nginx/objs/nginx
           
       # Setting an environment variable
       # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
@@ -1295,10 +1290,10 @@ jobs:
         id: step_one
         shell: bash
         run: |
-          #echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} with-zlib-ng and ngx_http_geoip2_module Compiler-musl-gcc arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}" >> $GITHUB_ENV
-          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} Compiler-musl-gcc arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}" >> $GITHUB_ENV
-          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
-          echo "RELEASE_NAME=nginx-quic v$(grep "#define NGINX_VERSION" ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          #echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" ${{ github.workspace }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} with-zlib-ng and ngx_http_geoip2_module Compiler-musl-gcc arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}" >> $GITHUB_ENV
+          echo "ASSET_NAME=nginx-quic-static v$(grep "#define NGINX_VERSION" ${{ github.workspace }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"') ${{ env.Commit_ID }} Compiler-musl-gcc arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}" >> $GITHUB_ENV
+          echo "TAG_NAME=v$(grep "#define NGINX_VERSION" ${{ github.workspace }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=nginx-quic v$(grep "#define NGINX_VERSION" ${{ github.workspace }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')" >> $GITHUB_ENV
           
           echo "TAG_NAME: "
           echo "${{ env.TAG_NAME }}"
@@ -1343,7 +1338,7 @@ jobs:
           tag: ${{ env.TAG_NAME }}
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
-          file: ${{ env.GITHUB_WORKSPACE_ENV }}/nginx/objs/nginx
+          file: ${{ github.workspace  }}/nginx/objs/nginx
           body: |
             ### Nginx-Quic Build  
             ### Happy play !
