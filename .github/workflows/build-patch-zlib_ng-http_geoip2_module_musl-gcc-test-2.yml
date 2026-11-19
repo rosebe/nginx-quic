@@ -227,7 +227,7 @@ jobs:
            
       - name: Checkout code
         if: steps.arbitrate.outputs.IS_WINNER == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
      
       - name: Runtime depend 
         #if: ${{ github.event.inputs.Runtime_Depend_Update == 'true' }}
