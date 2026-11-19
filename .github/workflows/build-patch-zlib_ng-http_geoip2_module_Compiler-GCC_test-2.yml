@@ -286,7 +286,7 @@ jobs:
       - name: zlib-ng [Pre-configure zlib-ng for gcc]
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
-        zlib-ng_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+          zlib-ng_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           git clone github.com
           cd zlib-ng
@@ -314,7 +314,7 @@ jobs:
       - name: zstd [Static build & install with gcc]
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
-        zstd_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+          zstd_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           git clone --depth 1 github.com
           cd zstd
@@ -341,7 +341,7 @@ jobs:
       - name: pcre2 [Static build with CMake]
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
-        Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+          Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           git clone --recurse-submodules github.com
           cd pcre2
@@ -368,7 +368,7 @@ jobs:
       - name: libmaxminddb [Static build with CMake]
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
-        libmaxminddb_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+          libmaxminddb_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           git clone --recursive -j8 github.com
           cd libmaxminddb
@@ -403,7 +403,7 @@ jobs:
       - name: build
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
-        nginx_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+          nginx_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
           git clone https://github.com/nginx/nginx.git
           cd nginx
