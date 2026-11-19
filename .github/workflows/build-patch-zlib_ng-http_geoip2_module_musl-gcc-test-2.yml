@@ -199,6 +199,7 @@ jobs:
         if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
           set -euo pipefail
+          sleep 60
           FIRST_META=$(find /tmp/candidates -name "meta.env" | sort -V | head -n 1 || true)
           if [ -z "$FIRST_META" ]; then
             echo "❌ 未找到任何候选 meta.env"
