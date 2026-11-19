@@ -272,362 +272,362 @@ jobs:
           
           cd ../../../..
           
-        请谨慎使用此类代码。
-        BROTLI_INC="${{ github.workspace }}/ngx_brotli/deps/brotli/installed/include"
-        BROTLI_LIB="${{ github.workspace }}/ngx_brotli/deps/brotli/installed/lib"
-        mkdir -p "${BROTLI_LIB}"
-        mkdir -p "${BROTLI_INC}/brotli"
-        find ${{ github.workspace }}/ngx_brotli -name ".a" -exec cp -f {} "${BROTLI_LIB}/" ;
-        find ${{ github.workspace }}/ngx_brotli -name ".h" | grep "/include/brotli/" | xargs -I {} cp -f {} "${BROTLI_INC}/brotli/"
-        echo "✅ === 检查最终生成的干净挂载点目录结构 ==="
-        ls -lh "${BROTLI_LIB}/"
-        ls -lh "${BROTLI_INC}/brotli/"
-      
+          #请谨慎使用此类代码。
+          BROTLI_INC="${{ github.workspace }}/ngx_brotli/deps/brotli/installed/include"
+          BROTLI_LIB="${{ github.workspace }}/ngx_brotli/deps/brotli/installed/lib"
+          mkdir -p "${BROTLI_LIB}"
+          mkdir -p "${BROTLI_INC}/brotli"
+          find ${{ github.workspace }}/ngx_brotli -name ".a" -exec cp -f {} "${BROTLI_LIB}/" ;
+          find ${{ github.workspace }}/ngx_brotli -name ".h" | grep "/include/brotli/" | xargs -I {} cp -f {} "${BROTLI_INC}/brotli/"
+          echo "✅ === 检查最终生成的干净挂载点目录结构 ==="
+          ls -lh "${BROTLI_LIB}/"
+          ls -lh "${BROTLI_INC}/brotli/"
+        
       - name: zlib-ng [Pre-configure zlib-ng for gcc]
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
         zlib-ng_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-        git clone github.com
-        cd zlib-ng
-        echo "zlib-ng_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-        echo "✅ zlib-ng_Commit_ID: $(git rev-parse HEAD)"
-        mkdir out && cd out
-        cmake 
-        -DCMAKE_C_COMPILER=gcc 
-        -DCMAKE_CXX_COMPILER=g++ 
-        -DCMAKE_BUILD_TYPE=Release 
-        -DZLIB_COMPAT=ON 
-        -DBUILD_SHARED_LIBS=OFF 
-        -DBUILD_TESTING=OFF 
-        -DWITH_GTEST=OFF 
-        -DWITH_RUNTIME_CPU_DETECTION=OFF 
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON 
-        -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" 
-        -DCMAKE_INSTALL_PREFIX=../installed ..
-        cmake --build . --config Release -j$(nproc)
-        cmake --install .
-        cd ../..
-        ls -lh "${{ github.workspace }}/zlib-ng/installed/lib"
-        ls -lh "${{ github.workspace }}/zlib-ng/installed/include"
-      
+          git clone github.com
+          cd zlib-ng
+          echo "zlib-ng_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ zlib-ng_Commit_ID: $(git rev-parse HEAD)"
+          mkdir out && cd out
+          cmake 
+          -DCMAKE_C_COMPILER=gcc 
+          -DCMAKE_CXX_COMPILER=g++ 
+          -DCMAKE_BUILD_TYPE=Release 
+          -DZLIB_COMPAT=ON 
+          -DBUILD_SHARED_LIBS=OFF 
+          -DBUILD_TESTING=OFF 
+          -DWITH_GTEST=OFF 
+          -DWITH_RUNTIME_CPU_DETECTION=OFF 
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON 
+          -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" 
+          -DCMAKE_INSTALL_PREFIX=../installed ..
+          cmake --build . --config Release -j$(nproc)
+          cmake --install .
+          cd ../..
+          ls -lh "${{ github.workspace }}/zlib-ng/installed/lib"
+          ls -lh "${{ github.workspace }}/zlib-ng/installed/include"
+        
       - name: zstd [Static build & install with gcc]
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
         zstd_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-        git clone --depth 1 github.com
-        cd zstd
-        echo "zstd_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-        echo "✅ zstd_Commit_ID: $(git rev-parse HEAD)"
-        make clean
-        make -j"$(nproc)" 
-        CC=gcc 
-        BUILD_SHARED=no 
-        CFLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC"
-        cd lib
-        make install 
-        PREFIX=$(pwd)/../installed 
-        BUILD_SHARED=no
-        cd ../..
-        ls -lh "${{ github.workspace }}/zstd/installed/lib"
-        ls -lh "${{ github.workspace }}/zstd/installed/include"
-      
+          git clone --depth 1 github.com
+          cd zstd
+          echo "zstd_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ zstd_Commit_ID: $(git rev-parse HEAD)"
+          make clean
+          make -j"$(nproc)" 
+          CC=gcc 
+          BUILD_SHARED=no 
+          CFLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC"
+          cd lib
+          make install 
+          PREFIX=$(pwd)/../installed 
+          BUILD_SHARED=no
+          cd ../..
+          ls -lh "${{ github.workspace }}/zstd/installed/lib"
+          ls -lh "${{ github.workspace }}/zstd/installed/include"
+        
       - name: zstd-nginx-module
         if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
-        git clone github.com
+          git clone github.com
       
       - name: pcre2 [Static build with CMake]
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
         Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-        git clone --recurse-submodules github.com
-        cd pcre2
-        echo "Pcre2_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-        echo "✅ Pcre2_Commit_ID: $(git rev-parse HEAD)"
-        mkdir out && cd out
-        cmake 
-        -DCMAKE_C_COMPILER=gcc 
-        -DCMAKE_BUILD_TYPE=Release 
-        -DZLIB_INCLUDE_DIR=${{ github.workspace }}/zlib-ng/installed/include 
-        -DZLIB_LIBRARY=${{ github.workspace }}/zlib-ng/installed/lib/libz.a 
-        -DBUILD_SHARED_LIBS=OFF 
-        -DPCRE2_SUPPORT_JIT=ON 
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON 
-        -DPCRE2_BUILD_STATIC_WITH_PIC=ON 
-        -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" 
-        -DCMAKE_INSTALL_PREFIX=../installed ..
-        cmake --build . --config Release -j$(nproc)
-        cmake --install .
-        cd ../..
-        ls -lh "${{ github.workspace }}/pcre2/installed/lib"
-        ls -lh "${{ github.workspace }}/pcre2/installed/include"
-      
+          git clone --recurse-submodules github.com
+          cd pcre2
+          echo "Pcre2_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ Pcre2_Commit_ID: $(git rev-parse HEAD)"
+          mkdir out && cd out
+          cmake 
+          -DCMAKE_C_COMPILER=gcc 
+          -DCMAKE_BUILD_TYPE=Release 
+          -DZLIB_INCLUDE_DIR=${{ github.workspace }}/zlib-ng/installed/include 
+          -DZLIB_LIBRARY=${{ github.workspace }}/zlib-ng/installed/lib/libz.a 
+          -DBUILD_SHARED_LIBS=OFF 
+          -DPCRE2_SUPPORT_JIT=ON 
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON 
+          -DPCRE2_BUILD_STATIC_WITH_PIC=ON 
+          -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }} -fPIC" 
+          -DCMAKE_INSTALL_PREFIX=../installed ..
+          cmake --build . --config Release -j$(nproc)
+          cmake --install .
+          cd ../..
+          ls -lh "${{ github.workspace }}/pcre2/installed/lib"
+          ls -lh "${{ github.workspace }}/pcre2/installed/include"
+        
       - name: libmaxminddb [Static build with CMake]
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
         libmaxminddb_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-        git clone --recursive -j8 github.com
-        cd libmaxminddb
-        echo "libmaxminddb_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-        echo "✅ libmaxminddb_Commit_ID: $(git rev-parse HEAD)"
-        mkdir out && cd out
-        cmake 
-        -DCMAKE_C_COMPILER=gcc 
-        -DCMAKE_CXX_COMPILER=g++ 
-        -DCMAKE_BUILD_TYPE=Release 
-        -DBUILD_SHARED_LIBS=OFF 
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON 
-        -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" 
-        -DCMAKE_CXX_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" 
-        -DCMAKE_INSTALL_PREFIX=../installed ..
-        cmake --build . --config Release -j$(nproc)
-        cmake --install .
-        cd ../..
-        ls -lh "${{ github.workspace }}/libmaxminddb/installed/lib"
-        ls -lh "${{ github.workspace }}/libmaxminddb/installed/include"
-      
+          git clone --recursive -j8 github.com
+          cd libmaxminddb
+          echo "libmaxminddb_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "✅ libmaxminddb_Commit_ID: $(git rev-parse HEAD)"
+          mkdir out && cd out
+          cmake 
+          -DCMAKE_C_COMPILER=gcc 
+          -DCMAKE_CXX_COMPILER=g++ 
+          -DCMAKE_BUILD_TYPE=Release 
+          -DBUILD_SHARED_LIBS=OFF 
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON 
+          -DCMAKE_C_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" 
+          -DCMAKE_CXX_FLAGS="${{ env.OPTIMIZED_FLAGS }} -march=${{ env.OPTIMIZED_MARCH }}" 
+          -DCMAKE_INSTALL_PREFIX=../installed ..
+          cmake --build . --config Release -j$(nproc)
+          cmake --install .
+          cd ../..
+          ls -lh "${{ github.workspace }}/libmaxminddb/installed/lib"
+          ls -lh "${{ github.workspace }}/libmaxminddb/installed/include"
+        
       - name: geoip2-nginx-module
         if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
-        git clone github.com
+          git clone https://github.com/leev/ngx_http_geoip2_module.git
       
       - name: Build time
         if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
-        echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
+          echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
       
       - name: build
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
         nginx_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-        git clone github.com
-        cd nginx
-        echo "Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-        curl githubusercontent.com | patch --verbose -p 1
-        rm -rf objs/
-        ZLIB_INC="../zlib-ng/installed/include"
-        ZLIB_LIB="../zlib-ng/installed/lib"
-        BROTLI_INC="../ngx_brotli/deps/brotli/installed/include"
-        BROTLI_LIB="../ngx_brotli/deps/brotli/installed/lib"
-        MMDB_INC="../libmaxminddb/installed/include"
-        MMDB_LIB="../libmaxminddb/installed/lib"
-        OPENSSL_INC="../openssl/installed/include"
-        OPENSSL_LIB="-L../openssl/installed/lib -L../openssl/installed/lib64"
-        PCRE2_INC="../pcre2/installed/include"
-        PCRE2_LIB="../pcre2/installed/lib"
-        export ZSTD_INC="${{ github.workspace }}/zstd/installed/include"
-        export ZSTD_LIB="${{ github.workspace }}/zstd/installed/lib"
-        CC_OPT_SECTIONS="-ffunction-sections -fdata-sections"
-        LD_OPT_GC="-Wl,--gc-sections"
-        CC_OPTIONS="-static -static-libgcc -I${ZLIB_INC} -I${BROTLI_INC} -I${MMDB_INC} -I${OPENSSL_INC} -I${PCRE2_INC} -I${ZSTD_INC} -march=${{ env.OPTIMIZED_MARCH }} ${{ env.OPTIMIZED_FLAGS }} ${CC_OPT_SECTIONS}"
-        LD_OPTIONS="-static -L${ZLIB_LIB} -L${BROTLI_LIB} -L${MMDB_LIB} ${OPENSSL_LIB} -L${PCRE2_LIB} -L${ZSTD_LIB} -lssl -lcrypto -lz -lpcre2-8 -lmaxminddb -lzstd -march=${{ env.OPTIMIZED_MARCH }} ${{ env.OPTIMIZED_FLAGS }} ${LD_OPT_GC}"
-        ./auto/configure 
-        --with-cc=gcc 
-        --prefix=/etc/nginx 
-        --sbin-path=/usr/sbin/nginx 
-        --modules-path=/usr/lib64/nginx/modules 
-        --conf-path=/etc/nginx/nginx.conf 
-        --error-log-path=/var/log/nginx/error.log 
-        --http-log-path=/var/log/nginx/access.log 
-        --pid-path=/var/run/nginx.pid 
-        --lock-path=/var/run/nginx.lock 
-        --http-client-body-temp-path=/var/cache/nginx/client_temp 
-        --http-proxy-temp-path=/var/cache/nginx/proxy_temp 
-        --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp 
-        --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp 
-        --http-scgi-temp-path=/var/cache/nginx/scgi_temp 
-        --user=nginx 
-        --group=nginx 
-        --with-compat 
-        --with-threads 
-        --with-http_addition_module 
-        --with-http_auth_request_module 
-        --with-http_dav_module 
-        --with-http_flv_module 
-        --with-http_gunzip_module 
-        --with-http_gzip_static_module 
-        --with-http_mp4_module 
-        --with-http_random_index_module 
-        --with-http_realip_module 
-        --with-http_secure_link_module 
-        --with-http_slice_module 
-        --with-http_ssl_module 
-        --with-http_stub_status_module 
-        --with-http_sub_module 
-        --with-http_v2_module 
-        --with-mail 
-        --with-mail_ssl_module 
-        --with-stream 
-        --with-stream_realip_module 
-        --with-stream_ssl_module 
-        --with-stream_ssl_preread_module 
-        --add-module=../zstd-nginx-module 
-        --add-module=../ngx_brotli 
-        --add-module=../ngx_http_geoip2_module 
-        --with-http_v3_module 
-        --build="Commit_ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe_add_patch: Dynamic TLS Record support. Zlib: zlib-ng. GeoIP2: Enable. QUIC: Enable. Compiler: GCC. arch: ${{ env.OPTIMIZED_MARCH }}. flags: ${{ env.OPTIMIZED_FLAGS }}. build on: ${{ env.nginx_build_time }}" 
-        --with-cc-opt="${CC_OPTIONS}" 
-        --with-ld-opt="${LD_OPTIONS}" || (cat objs/autoconf.err && exit 1)
-        make -j$(nproc --all) || (cat objs/autoconf.err && exit 1)
-      
+          git clone https://github.com/nginx/nginx.git
+          cd nginx
+          echo "Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          curl githubusercontent.com | patch --verbose -p 1
+          rm -rf objs/
+          ZLIB_INC="../zlib-ng/installed/include"
+          ZLIB_LIB="../zlib-ng/installed/lib"
+          BROTLI_INC="../ngx_brotli/deps/brotli/installed/include"
+          BROTLI_LIB="../ngx_brotli/deps/brotli/installed/lib"
+          MMDB_INC="../libmaxminddb/installed/include"
+          MMDB_LIB="../libmaxminddb/installed/lib"
+          OPENSSL_INC="../openssl/installed/include"
+          OPENSSL_LIB="-L../openssl/installed/lib -L../openssl/installed/lib64"
+          PCRE2_INC="../pcre2/installed/include"
+          PCRE2_LIB="../pcre2/installed/lib"
+          export ZSTD_INC="${{ github.workspace }}/zstd/installed/include"
+          export ZSTD_LIB="${{ github.workspace }}/zstd/installed/lib"
+          CC_OPT_SECTIONS="-ffunction-sections -fdata-sections"
+          LD_OPT_GC="-Wl,--gc-sections"
+          CC_OPTIONS="-static -static-libgcc -I${ZLIB_INC} -I${BROTLI_INC} -I${MMDB_INC} -I${OPENSSL_INC} -I${PCRE2_INC} -I${ZSTD_INC} -march=${{ env.OPTIMIZED_MARCH }} ${{ env.OPTIMIZED_FLAGS }} ${CC_OPT_SECTIONS}"
+          LD_OPTIONS="-static -L${ZLIB_LIB} -L${BROTLI_LIB} -L${MMDB_LIB} ${OPENSSL_LIB} -L${PCRE2_LIB} -L${ZSTD_LIB} -lssl -lcrypto -lz -lpcre2-8 -lmaxminddb -lzstd -march=${{ env.OPTIMIZED_MARCH }} ${{ env.OPTIMIZED_FLAGS }} ${LD_OPT_GC}"
+          ./auto/configure 
+          --with-cc=gcc 
+          --prefix=/etc/nginx 
+          --sbin-path=/usr/sbin/nginx 
+          --modules-path=/usr/lib64/nginx/modules 
+          --conf-path=/etc/nginx/nginx.conf 
+          --error-log-path=/var/log/nginx/error.log 
+          --http-log-path=/var/log/nginx/access.log 
+          --pid-path=/var/run/nginx.pid 
+          --lock-path=/var/run/nginx.lock 
+          --http-client-body-temp-path=/var/cache/nginx/client_temp 
+          --http-proxy-temp-path=/var/cache/nginx/proxy_temp 
+          --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp 
+          --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp 
+          --http-scgi-temp-path=/var/cache/nginx/scgi_temp 
+          --user=nginx 
+          --group=nginx 
+          --with-compat 
+          --with-threads 
+          --with-http_addition_module 
+          --with-http_auth_request_module 
+          --with-http_dav_module 
+          --with-http_flv_module 
+          --with-http_gunzip_module 
+          --with-http_gzip_static_module 
+          --with-http_mp4_module 
+          --with-http_random_index_module 
+          --with-http_realip_module 
+          --with-http_secure_link_module 
+          --with-http_slice_module 
+          --with-http_ssl_module 
+          --with-http_stub_status_module 
+          --with-http_sub_module 
+          --with-http_v2_module 
+          --with-mail 
+          --with-mail_ssl_module 
+          --with-stream 
+          --with-stream_realip_module 
+          --with-stream_ssl_module 
+          --with-stream_ssl_preread_module 
+          --add-module=../zstd-nginx-module 
+          --add-module=../ngx_brotli 
+          --add-module=../ngx_http_geoip2_module 
+          --with-http_v3_module 
+          --build="Commit_ID: $(git rev-parse --short HEAD). Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}. Rosebe_add_patch: Dynamic TLS Record support. Zlib: zlib-ng. GeoIP2: Enable. QUIC: Enable. Compiler: GCC. arch: ${{ env.OPTIMIZED_MARCH }}. flags: ${{ env.OPTIMIZED_FLAGS }}. build on: ${{ env.nginx_build_time }}" 
+          --with-cc-opt="${CC_OPTIONS}" 
+          --with-ld-opt="${LD_OPTIONS}" || (cat objs/autoconf.err && exit 1)
+          make -j$(nproc --all) || (cat objs/autoconf.err && exit 1)
+        
       - name: Strip and Package
         if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
-        NGINX_TEST="${{ github.workspace }}/nginx/objs/nginx"
-        echo "🛠️ 瘦身前："
-        ls -lh $NGINX_TEST
-        strip --strip-all $NGINX_TEST
-        echo "🛠️ 瘦身后："
-        ls -lh $NGINX_TEST
-        echo "==== ELF 类型 ===="
-        readelf -h "$NGINX_TEST" | grep -E 'Class:|Machine:|Type:'
-        echo "==== 动态段检查 ===="
-        if readelf -l "$NGINX_TEST" | grep -q 'INTERP'; then
-        echo "❌ 存在 ELF INTERP 段"
-        exit 1
-        else
-        echo "✅ 不存在 ELF INTERP 段"
-        fi
-        if readelf -d "$NGINX_TEST" 2>&1 | grep -q '(NEEDED)'; then
-        echo "❌ 存在 DT_NEEDED 动态库依赖"
-        exit 1
-        else
-        echo "✅ 未发现 DT_NEEDED 动态库依赖"
-        fi
-        echo "==== 验证运行 ===="
-        "$NGINX_TEST" -V
-      
+          NGINX_TEST="${{ github.workspace }}/nginx/objs/nginx"
+          echo "🛠️ 瘦身前："
+          ls -lh $NGINX_TEST
+          strip --strip-all $NGINX_TEST
+          echo "🛠️ 瘦身后："
+          ls -lh $NGINX_TEST
+          echo "==== ELF 类型 ===="
+          readelf -h "$NGINX_TEST" | grep -E 'Class:|Machine:|Type:'
+          echo "==== 动态段检查 ===="
+          if readelf -l "$NGINX_TEST" | grep -q 'INTERP'; then
+          echo "❌ 存在 ELF INTERP 段"
+          exit 1
+          else
+          echo "✅ 不存在 ELF INTERP 段"
+          fi
+          if readelf -d "$NGINX_TEST" 2>&1 | grep -q '(NEEDED)'; then
+          echo "❌ 存在 DT_NEEDED 动态库依赖"
+          exit 1
+          else
+          echo "✅ 未发现 DT_NEEDED 动态库依赖"
+          fi
+          echo "==== 验证运行 ===="
+          "$NGINX_TEST" -V
+        
       - name: Verify
         if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
-        echo "==== 验证二进制文件状态 ===="
-        file ${{ github.workspace }}/nginx/objs/nginx
-        ldd ${{ github.workspace }}/nginx/objs/nginx || echo "Static binary confirmed"
-      
+          echo "==== 验证二进制文件状态 ===="
+          file ${{ github.workspace }}/nginx/objs/nginx
+          ldd ${{ github.workspace }}/nginx/objs/nginx || echo "Static binary confirmed"
+        
       - name: Comprehensive Stress Testing
         if: steps.cpu_check.outputs.MATCHED == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
         run: |
-        G_RAW="githubusercontent.com"
-        G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
-        G_HOST="https://github.com"
-        G_REPO="/grpc/grpc-go.git"
-        NGINX_BIN="${{ github.workspace }}/nginx/objs/nginx"
-        G_WORKSPACE="${{ github.workspace }}"
-        sudo apt-get update
-        sudo apt-get install -y wrk openssl bc
-        rm -rf /tmp/pgo-run /tmp/pgo-data
-        mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
-        chmod -R 777 /tmp/pgo-run /tmp/pgo-data
-        sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 
-        -keyout /tmp/pgo-run/server.key 
-        -out /tmp/pgo-run/server.crt 
-        -subj "/CN=example.com"
-        sudo chmod 777 /tmp/pgo-run/server.key /tmp/pgo-run/server.crt
-        cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
-        cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
-        curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/pgo-run/proto/helloworld.proto
-        go install "github.com"
-        export PATH=$PATH:$(go env GOPATH)/bin
-        git clone --depth 1 "${G_HOST}${G_REPO}"
-        cd grpc-go/examples/helloworld/greeter_server
-        go run main.go > /tmp/grpc-backend.log 2>&1 &
-        BACKEND_PID=$!
-        cd -
-        echo ">> 等待 gRPC 后端 (50051) 就绪..."
-        timeout 30s bash -c 'until nc -z localhost 50051; do sleep 1; done' || echo "⚠️ gRPC 后端启动超时"
-        sudo chmod +x ${{ github.workspace }}/nginx/objs/nginx
-        sudo useradd -M -s /usr/sbin/nologin nginx 2>/dev/null || true
-        sudo killall -9 nginx 2>/dev/null || true
-        sudo rm -f /tmp/pgo-run/nginx.pid /tmp/nginx-start.log /tmp/pgo-run/logs/error.log
-        sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf || {
-        echo "NGINX 配置检查失败"
-        exit 1
-        }
-        sudo env "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf > /tmp/nginx-start.log 2>&1 &
-        NGINX_LAUNCH_PID=$!
-        NGINX_PID=""
-        for i in $(seq 1 20); do
-        if [ -s /tmp/pgo-run/nginx.pid ]; then
-        candidate=$(cat /tmp/pgo-run/nginx.pid)
-        if sudo kill -0 "$candidate" 2>/dev/null; then
-        NGINX_PID="$candidate"
-        break
-        fi
-        fi
-        if ! kill -0 "$NGINX_LAUNCH_PID" 2>/dev/null; then
-        break
-        fi
-        sleep 0.25
-        done
-        if [ -z "$NGINX_PID" ]; then
-        echo "NGINX master 未能正常启动"
-        cat /tmp/nginx-start.log 2>/dev/null || true
-        cat /tmp/pgo-run/logs/error.log 2>/dev/null || true
-        exit 1
-        fi
-        sleep 5
-        if ! sudo kill -0 "$NGINX_PID" 2>/dev/null; then
-        echo "NGINX master 已退出"
-        exit 1
-        fi
-        echo ">> 🎉 Nginx 运行稳定，开始精准压测..."
-        wrk -t2 -c200 -d12s --latency --timeout 2s -H "Host: example.com" https://127.0.0.1:8443
-        sleep 10
-        wrk -t2 -c200 -d12s --latency --timeout 2s -H "Host: example.com" https://127.0.0.1:8443
-        ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto --call helloworld.Greeter.SayHello -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
-        sleep 10
-        ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto --call helloworld.Greeter.SayHello -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
-        wrk -t2 -c200 -d12s --latency -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" 127.0.0
-        sleep 10
-        wrk -t2 -c200 -d12s --latency -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" 127.0.0
-        wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
-        sleep 10
-        wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
-        sleep 5
-        if ! sudo kill -0 "$NGINX_PID" 2>/dev/null; then
-        echo "NGINX master 已退出"
-        exit 1
-        fi
-        sudo kill -QUIT "$NGINX_PID" 2>/dev/null || true
-        kill -15 "$BACKEND_PID" 2>/dev/null || true
-        for ((i=1; i<=30; i++)); do
-        NGINX_ALIVE=0
-        BACKEND_ALIVE=0
-        if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then NGINX_ALIVE=1; fi
-        if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then BACKEND_ALIVE=1; fi
-        if [ $NGINX_ALIVE -eq 0 ] && [ $BACKEND_ALIVE -eq 0 ]; then
-        break
-        fi
-        sleep 0.5
-        done
-        sudo kill -9 "$NGINX_PID" 2>/dev/null || true
-        kill -9 "$BACKEND_PID" 2>/dev/null || true
-        # === 生成发布元数据，供下游 publish Job 安全读取 ===
+          G_RAW="githubusercontent.com"
+          G_PROTO_PATH="/grpc/grpc-go/master/examples/helloworld/helloworld/helloworld.proto"
+          G_HOST="https://github.com"
+          G_REPO="/grpc/grpc-go.git"
+          NGINX_BIN="${{ github.workspace }}/nginx/objs/nginx"
+          G_WORKSPACE="${{ github.workspace }}"
+          sudo apt-get update
+          sudo apt-get install -y wrk openssl bc
+          rm -rf /tmp/pgo-run /tmp/pgo-data
+          mkdir -p /tmp/pgo-run/{proto,geoip,logs,client_body_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp} /tmp/pgo-data
+          chmod -R 777 /tmp/pgo-run /tmp/pgo-data
+          sudo openssl req -x509 -nodes -days 1 -newkey rsa:2048 
+          -keyout /tmp/pgo-run/server.key 
+          -out /tmp/pgo-run/server.crt 
+          -subj "/CN=example.com"
+          sudo chmod 777 /tmp/pgo-run/server.key /tmp/pgo-run/server.crt
+          cp "$G_WORKSPACE/pgo.conf" /tmp/pgo-run/pgo.conf
+          cp "$G_WORKSPACE/GeoLite2-Country.mmdb" /tmp/pgo-run/geoip/GeoLite2-Country.mmdb
+          curl -Lf -sSL "${G_RAW}${G_PROTO_PATH}" -o /tmp/pgo-run/proto/helloworld.proto
+          go install "github.com"
+          export PATH=$PATH:$(go env GOPATH)/bin
+          git clone --depth 1 "${G_HOST}${G_REPO}"
+          cd grpc-go/examples/helloworld/greeter_server
+          go run main.go > /tmp/grpc-backend.log 2>&1 &
+          BACKEND_PID=$!
+          cd -
+          echo ">> 等待 gRPC 后端 (50051) 就绪..."
+          timeout 30s bash -c 'until nc -z localhost 50051; do sleep 1; done' || echo "⚠️ gRPC 后端启动超时"
+          sudo chmod +x ${{ github.workspace }}/nginx/objs/nginx
+          sudo useradd -M -s /usr/sbin/nologin nginx 2>/dev/null || true
+          sudo killall -9 nginx 2>/dev/null || true
+          sudo rm -f /tmp/pgo-run/nginx.pid /tmp/nginx-start.log /tmp/pgo-run/logs/error.log
+          sudo "$NGINX_BIN" -t -c /tmp/pgo-run/pgo.conf || {
+          echo "NGINX 配置检查失败"
+          exit 1
+          }
+          sudo env "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf > /tmp/nginx-start.log 2>&1 &
+          NGINX_LAUNCH_PID=$!
+          NGINX_PID=""
+          for i in $(seq 1 20); do
+          if [ -s /tmp/pgo-run/nginx.pid ]; then
+          candidate=$(cat /tmp/pgo-run/nginx.pid)
+          if sudo kill -0 "$candidate" 2>/dev/null; then
+          NGINX_PID="$candidate"
+          break
+          fi
+          fi
+          if ! kill -0 "$NGINX_LAUNCH_PID" 2>/dev/null; then
+          break
+          fi
+          sleep 0.25
+          done
+          if [ -z "$NGINX_PID" ]; then
+          echo "NGINX master 未能正常启动"
+          cat /tmp/nginx-start.log 2>/dev/null || true
+          cat /tmp/pgo-run/logs/error.log 2>/dev/null || true
+          exit 1
+          fi
+          sleep 5
+          if ! sudo kill -0 "$NGINX_PID" 2>/dev/null; then
+          echo "NGINX master 已退出"
+          exit 1
+          fi
+          echo ">> 🎉 Nginx 运行稳定，开始精准压测..."
+          wrk -t2 -c200 -d12s --latency --timeout 2s -H "Host: example.com" https://127.0.0.1:8443
+          sleep 10
+          wrk -t2 -c200 -d12s --latency --timeout 2s -H "Host: example.com" https://127.0.0.1:8443
+          ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto --call helloworld.Greeter.SayHello -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
+          sleep 10
+          ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto --call helloworld.Greeter.SayHello -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
+          wrk -t2 -c200 -d12s --latency -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" 127.0.0
+          sleep 10
+          wrk -t2 -c200 -d12s --latency -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" 127.0.0
+          wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
+          sleep 10
+          wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
+          sleep 5
+          if ! sudo kill -0 "$NGINX_PID" 2>/dev/null; then
+          echo "NGINX master 已退出"
+          exit 1
+          fi
+          sudo kill -QUIT "$NGINX_PID" 2>/dev/null || true
+          kill -15 "$BACKEND_PID" 2>/dev/null || true
+          for ((i=1; i<=30; i++)); do
+          NGINX_ALIVE=0
+          BACKEND_ALIVE=0
+          if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then NGINX_ALIVE=1; fi
+          if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then BACKEND_ALIVE=1; fi
+          if [ $NGINX_ALIVE -eq 0 ] && [ $BACKEND_ALIVE -eq 0 ]; then
+          break
+          fi
+          sleep 0.5
+          done
+          sudo kill -9 "$NGINX_PID" 2>/dev/null || true
+          kill -9 "$BACKEND_PID" 2>/dev/null || true
+          # === 生成发布元数据，供下游 publish Job 安全读取 ===
       - name: Prepare release metadata
         if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
-        NGINX_VER=$(grep "#define NGINX_VERSION" ${{ github.workspace }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')
-        mkdir -p ${{ github.workspace }}/release_pkg
-        cp ${{ github.workspace }}/nginx/objs/nginx ${{ github.workspace }}/release_pkg/nginx
-        cat < ${{ github.workspace }}/release_pkg/metadata.env
-        ASSET_NAME="nginx-quic-static v${NGINX_VER} ${{ env.Commit_ID }} Compiler-GCC arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}"
-        TAG_NAME="v${NGINX_VER}"
-        RELEASE_NAME="nginx-quic v${NGINX_VER}"
-        Commit_ID="${{ env.Commit_ID }}"
-        Openssl_Commit_ID="${{ env.Openssl_Commit_ID }}"
-        Brotli_Commit_ID="${{ env.Brotli_Commit_ID }}"
-        zlib_ng_Commit_ID="${{ env.zlib-ng_Commit_ID }}"
-        zstd_Commit_ID="${{ env.zstd_Commit_ID }}"
-        Pcre2_Commit_ID="${{ env.Pcre2_Commit_ID }}"
-        libmaxminddb_Commit_ID="${{ env.libmaxminddb_Commit_ID }}"
-        EOF
-        cat ${{ github.workspace }}/release_pkg/metadata.env
-        # === 安全上传 Artifact：名称绑定 slot，彻底杜绝并发重名冲突 ===
+          NGINX_VER=$(grep "#define NGINX_VERSION" ${{ github.workspace }}/nginx/src/core/nginx.h | awk '{print $3}' | tr -d '"')
+          mkdir -p ${{ github.workspace }}/release_pkg
+          cp ${{ github.workspace }}/nginx/objs/nginx ${{ github.workspace }}/release_pkg/nginx
+          cat < ${{ github.workspace }}/release_pkg/metadata.env
+          ASSET_NAME="nginx-quic-static v${NGINX_VER} ${{ env.Commit_ID }} Compiler-GCC arch-${{ env.OPTIMIZED_MARCH }} flags${{ env.OPTIMIZED_FLAGS }} test build on ${{ env.nginx_build_time }}"
+          TAG_NAME="v${NGINX_VER}"
+          RELEASE_NAME="nginx-quic v${NGINX_VER}"
+          Commit_ID="${{ env.Commit_ID }}"
+          Openssl_Commit_ID="${{ env.Openssl_Commit_ID }}"
+          Brotli_Commit_ID="${{ env.Brotli_Commit_ID }}"
+          zlib_ng_Commit_ID="${{ env.zlib-ng_Commit_ID }}"
+          zstd_Commit_ID="${{ env.zstd_Commit_ID }}"
+          Pcre2_Commit_ID="${{ env.Pcre2_Commit_ID }}"
+          libmaxminddb_Commit_ID="${{ env.libmaxminddb_Commit_ID }}"
+          EOF
+          cat ${{ github.workspace }}/release_pkg/metadata.env
+          # === 安全上传 Artifact：名称绑定 slot，彻底杜绝并发重名冲突 ===
       - name: Upload build artifact
         if: steps.cpu_check.outputs.MATCHED == 'true'
         uses: actions/upload-artifact@v7.0.2
@@ -658,16 +658,16 @@ jobs:
       
       - name: Verify build success (Fallback Check)
         run: |
-        if [ ! -f "./downloaded_pkg/nginx" ] || [ ! -f "./downloaded_pkg/metadata.env" ]; then
-        echo "❌ 致命错误：所有并发 Runner 均未抽中满足目标指令集 (${{ github.event.inputs.arch_version || 'x86-64-v3' }}) 的硬件，或编译过程失败！"
-        echo "💡 建议：点击右上角 Re-run all jobs 重新抽卡，或适当调大 build.strategy.matrix.slot 的并发数量。"
-        exit 1
-        fi
-        echo "✅ 兜底检查通过！成功获取到编译产物与元数据："
-        ls -lh ./downloaded_pkg
-        # 加载元数据到当前 Job 的 GITHUB_ENV
-        cat ./downloaded_pkg/metadata.env >> "$GITHUB_ENV"
-        # 将合并后的纯净产物重新上传为一个统一名称的 Artifact（方便在 Actions 页面直接下载）
+          if [ ! -f "./downloaded_pkg/nginx" ] || [ ! -f "./downloaded_pkg/metadata.env" ]; then
+          echo "❌ 致命错误：所有并发 Runner 均未抽中满足目标指令集 (${{ github.event.inputs.arch_version || 'x86-64-v3' }}) 的硬件，或编译过程失败！"
+          echo "💡 建议：点击右上角 Re-run all jobs 重新抽卡，或适当调大 build.strategy.matrix.slot 的并发数量。"
+          exit 1
+          fi
+          echo "✅ 兜底检查通过！成功获取到编译产物与元数据："
+          ls -lh ./downloaded_pkg
+          # 加载元数据到当前 Job 的 GITHUB_ENV
+          cat ./downloaded_pkg/metadata.env >> "$GITHUB_ENV"
+          # 将合并后的纯净产物重新上传为一个统一名称的 Artifact（方便在 Actions 页面直接下载）
       
       - name: Upload final unified artifact
         uses: actions/upload-artifact@v7.0.2
