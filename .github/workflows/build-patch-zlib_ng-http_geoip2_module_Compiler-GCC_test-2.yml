@@ -632,29 +632,29 @@ jobs:
         if: steps.cpu_check.outputs.MATCHED == 'true'
         uses: actions/upload-artifact@v7.0.2
         with:
-        name: nginx-quic-slot-${{ matrix.slot }}
-        path: ${{ github.workspace }}/release_pkg/*
-        if-no-files-found: error
-
-        #=====================================================================
-        #阶段 2：全军覆没兜底检查 & 安全发布到 Release
-        #=====================================================================
-
-        publish:
-        needs: build
-        # 即使 build 阶段部分任务被 cancel，此阶段依然必须运行以做兜底检查
-        if: always()
-        runs-on: ubuntu-latest
-        steps:
+          name: nginx-quic-slot-${{ matrix.slot }}
+          path: ${{ github.workspace }}/release_pkg/*
+          if-no-files-found: error
+  
+          #=====================================================================
+          #阶段 2：全军覆没兜底检查 & 安全发布到 Release
+          #=====================================================================
+  
+          publish:
+          needs: build
+          # 即使 build 阶段部分任务被 cancel，此阶段依然必须运行以做兜底检查
+          if: always()
+          runs-on: ubuntu-latest
+          steps:
       
       - name: Download artifacts from matched runner
         id: download
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-        pattern: nginx-quic-slot-*
-        path: ./downloaded_pkg
-        merge-multiple: true
+          pattern: nginx-quic-slot-*
+          path: ./downloaded_pkg
+          merge-multiple: true
       
       - name: Verify build success (Fallback Check)
         run: |
@@ -672,31 +672,31 @@ jobs:
       - name: Upload final unified artifact
         uses: actions/upload-artifact@v7.0.2
         with:
-        name: nginx-quic
-        path: ./downloaded_pkg/nginx
-      
+          name: nginx-quic
+          path: ./downloaded_pkg/nginx
+        
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@2.11.5
         if: github.event.inputs.Upload_Binaries_To_Release == 'true' || github.event_name == 'release'
         with:
-        repo_token: ${{ github.token }}
-        tag: ${{ env.TAG_NAME }}
-        release_name: ${{ env.RELEASE_NAME }}
-        asset_name: ${{ env.ASSET_NAME }}
-        file: ./downloaded_pkg/nginx
-        body: |
-        ### Nginx-Quic Build
-        ### Happy play !
-        - Commit ID: ${{ env.Commit_ID }}
-        - Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}
-        - Brotli_Commit_ID: ${{ env.Brotli_Commit_ID }}
-        - zlib-ng_Commit_ID: ${{ env.zlib_ng_Commit_ID }}
-        - zstd_Commit_ID: ${{ env.zstd_Commit_ID }}
-        - Pcre2_Commit_ID: ${{ env.Pcre2_Commit_ID }}
-        - libmaxminddb_Commit_ID: ${{ env.libmaxminddb_Commit_ID }}
-        - Optimization: PGO (Profile Guided Optimization) Disabled.
-        - Arch: x86-64-v4(avx512)  x86-64-v3(avx2)  x86-64-v2
-        - Static: All libraries linked statically.
-        - Modules: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
-        overwrite: true
-        file_glob: false
+          repo_token: ${{ github.token }}
+          tag: ${{ env.TAG_NAME }}
+          release_name: ${{ env.RELEASE_NAME }}
+          asset_name: ${{ env.ASSET_NAME }}
+          file: ./downloaded_pkg/nginx
+          body: |
+            ### Nginx-Quic Build
+            ### Happy play !
+            - Commit ID: ${{ env.Commit_ID }}
+            - Openssl_Commit_ID: ${{ env.Openssl_Commit_ID }}
+            - Brotli_Commit_ID: ${{ env.Brotli_Commit_ID }}
+            - zlib-ng_Commit_ID: ${{ env.zlib_ng_Commit_ID }}
+            - zstd_Commit_ID: ${{ env.zstd_Commit_ID }}
+            - Pcre2_Commit_ID: ${{ env.Pcre2_Commit_ID }}
+            - libmaxminddb_Commit_ID: ${{ env.libmaxminddb_Commit_ID }}
+            - Optimization: PGO (Profile Guided Optimization) Disabled.
+            - Arch: x86-64-v4(avx512)  x86-64-v3(avx2)  x86-64-v2
+            - Static: All libraries linked statically.
+            - Modules: Brotli, GeoIP2, OpenSSL/kTLS ,Zlib-ng.
+          overwrite: true
+          file_glob: false
