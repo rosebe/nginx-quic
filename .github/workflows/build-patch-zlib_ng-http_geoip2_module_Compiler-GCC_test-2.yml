@@ -214,7 +214,7 @@ jobs:
         env: 
           OPENSSL_COMMIT_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-          git clone --recurse-submodules -b openssl-4.1 --depth 1 -j8 https://github.com
+          git clone --recurse-submodules -b openssl-4.1 --depth 1 -j8 https://github.com/openssl/openssl.git
           cd openssl
           git submodule update --init --recursive
           echo "Openssl_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -248,7 +248,7 @@ jobs:
         env:
           Brotli_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-          git clone --recurse-submodules -j8 https://github.com
+         git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli.git
           cd ngx_brotli/deps/brotli
           
           echo "Brotli_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -288,7 +288,7 @@ jobs:
         env:
           zlib-ng_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-          git clone github.com
+          git clone https://github.com/zlib-ng/zlib-ng.git
           cd zlib-ng
           echo "zlib-ng_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "✅ zlib-ng_Commit_ID: $(git rev-parse HEAD)"
@@ -316,7 +316,7 @@ jobs:
         env:
           zstd_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-          git clone --depth 1 github.com
+          git clone --depth 1 https://github.com/facebook/zstd.git
           cd zstd
           echo "zstd_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "✅ zstd_Commit_ID: $(git rev-parse HEAD)"
@@ -336,14 +336,14 @@ jobs:
       - name: zstd-nginx-module
         if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
-          git clone github.com
+          git clone https://github.com/tokers/zstd-nginx-module.git
       
       - name: pcre2 [Static build with CMake]
         if: steps.cpu_check.outputs.MATCHED == 'true'
         env:
           Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-          git clone --recurse-submodules github.com
+         git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
           cd pcre2
           echo "Pcre2_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "✅ Pcre2_Commit_ID: $(git rev-parse HEAD)"
@@ -370,7 +370,7 @@ jobs:
         env:
           libmaxminddb_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         run: |
-          git clone --recursive -j8 github.com
+          git clone --recursive -j8 https://github.com/maxmind/libmaxminddb.git
           cd libmaxminddb
           echo "libmaxminddb_Commit_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "✅ libmaxminddb_Commit_ID: $(git rev-parse HEAD)"
