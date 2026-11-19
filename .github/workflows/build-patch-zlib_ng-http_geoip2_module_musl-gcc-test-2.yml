@@ -67,20 +67,22 @@ env:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  pick-runner:
+  pick-and-build:
     runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: read
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        slot: [1, 2, 3, 4, 5]
+        slot: [1, 2, 3, 4, 5, 6, 7]
 
     steps:
       - name: CPU instruction set architecture check
         id: cpu_check
         run: |
+          set -euo pipefail
           CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
                 print $2
                 exit
@@ -165,10 +167,9 @@ jobs:
           OPT=${{ steps.cpu_check.outputs.TARGET_OPT }}
           EOF
 
-      
       - name: Upload candidate artifact
         if: steps.cpu_check.outputs.MATCHED == 'true'
-        uses: actions/upload-artifact@v7.0.2
+        uses: actions/upload-artifact@v4
         with:
           name: candidate-slot-${{ matrix.slot }}
           path: candidate/meta.env
@@ -186,23 +187,24 @@ jobs:
           done
 
       - name: Download candidate artifacts
+        if: steps.cpu_check.outputs.MATCHED == 'true'
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           pattern: candidate-slot-*
           path: /tmp/candidates
 
-      - name: Elect single winner from candidates
-        id: elect_winner
+      - name: Arbitrate single winner
+        id: arbitrate
+        if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
           set -euo pipefail
-          ls -la /tmp/candidates || true
           FIRST_META=$(find /tmp/candidates -name "meta.env" | sort -V | head -n 1 || true)
           if [ -z "$FIRST_META" ]; then
-            echo "❌ 未找到任何候选 meta.env，请检查上方 download 步骤输出与 Artifacts 列表"
+            echo "❌ 未找到任何候选 meta.env"
             exit 1
           fi
-          
+
           # shellcheck disable=SC1090
           source "$FIRST_META"
           echo "当前槽位: ${{ matrix.slot }}, 仲裁胜出槽位: ${SLOT}"
@@ -210,111 +212,19 @@ jobs:
             echo "IS_WINNER=true" >> "$GITHUB_OUTPUT"
             echo "OPTIMIZED_MARCH=${ARCH}" >> "$GITHUB_ENV"
             echo "OPTIMIZED_FLAGS=${OPT}" >> "$GITHUB_ENV"
-            echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
+            #echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
           else
             echo "⏭️ 已有更优先的槽位 (${SLOT}) 胜出，本槽位跳过编译与压测"
             echo "IS_WINNER=false" >> "$GITHUB_OUTPUT"
-          fi       
-                     
-          echo "✅ 唯一赢家: slot=${SLOT}, arch=${ARCH}, opt=${OPT}"
-          echo "OPTIMIZED_MARCH=${ARCH}" >> "$GITHUB_ENV"
-          echo "OPTIMIZED_FLAGS=${OPT}" >> "$GITHUB_ENV"
-          #echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-              
+          fi
 
       - name: Checkout code
-        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
-        uses: actions/checkout@v7.0.1
-      
-      # This workflow contains a single job called "build"
-      #build:
-   
-            
-      - name: CPU instruction set architecture
-        run: |
-            # 根据当前 runner 实际暴露的 CPU 指令集选择目标架构
-            CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
-                  print $2
-                  exit
-              }' /proc/cpuinfo) "
-  
-            has_flag() {
-                  case "$CPU_FLAGS" in
-                      *" $1 "*) return 0 ;;
-                      *)         return 1 ;;
-                  esac
-            }
-  
-            if has_flag avx512f &&
-                 has_flag avx512bw &&
-                 has_flag avx512cd &&
-                 has_flag avx512dq &&
-                 has_flag avx512vl; then
-  
-                  CURRENT_MARCH="x86-64-v4"
-  
-            elif has_flag avx2 &&
-                   has_flag bmi1 &&
-                   has_flag bmi2 &&
-                   has_flag fma &&
-                   has_flag f16c &&
-                   { has_flag lzcnt || has_flag abm; } &&
-                   has_flag movbe &&
-                   has_flag xsave; then
-  
-                  CURRENT_MARCH="x86-64-v3"
-  
-            else
-                  CURRENT_MARCH="x86-64"
-            fi
-  
-            
-            echo "✅ Runner_CURRENT_MARCH: $CURRENT_MARCH"
-            
-            echo "===== Detected CPU flags ====="
-            printf '%s\n' "$CPU_FLAGS"
-            
-            # 读取输入，并提供 release 触发时的默认回滚值
-            INPUT_ARCH="${{ github.event.inputs.arch_version }}"
-            INPUT_OPT="${{ github.event.inputs.optimize_flags }}"
-            if [ -z "$INPUT_ARCH" ]; then INPUT_ARCH="x86-64-v3"; fi
-            if [ -z "$INPUT_OPT" ]; then INPUT_OPT="-O3 -flto=auto"; fi
-         
-            # === 1. 定义架构权重（用于向下兼容判断） ===
-            get_weight() {
-                  case "$1" in
-                      "x86-64-v4") echo 4 ;;
-                      "x86-64-v3") echo 3 ;;
-                      "x86-64-v2") echo 2 ;; # 预留 v2 扩展
-                      *)           echo 1 ;; # 默认为基础 x86-64
-                  esac
-            }
-            
-            CURRENT_WEIGHT=$(get_weight "$CURRENT_MARCH")
-            TARGET_WEIGHT=$(get_weight "$INPUT_ARCH")
-            
-            # === 2. 比较权重 ===
-            if [ "$CURRENT_WEIGHT" -ge "$TARGET_WEIGHT" ]; then
-                  echo "✅ 架构兼容检查通过！(当前硬件: $CURRENT_MARCH >= 目标编译: $INPUT_ARCH)"
-            else
-                  echo "❌ 错误: 当前硬件架构不足以运行目标程序！"
-                  echo "当前硬件最高支持: $CURRENT_MARCH，但设定编译目标为: $INPUT_ARCH"
-                  exit 1
-            fi
-  
-            # === 3. 兼容检查通过后，写入环境变量 ===
-            echo "OPTIMIZED_MARCH=$INPUT_ARCH" >> "$GITHUB_ENV"
-            echo "OPTIMIZED_FLAGS=$INPUT_OPT" >> "$GITHUB_ENV"
-         
-      
+        if: steps.arbitrate.outputs.IS_WINNER == 'true'
+        uses: actions/checkout@v4
      
-      
-      # Runs a set of commands using the runners shell
       - name: Runtime depend 
-        if: ${{ github.event.inputs.Runtime_Depend_Update == 'true' }}
+        #if: ${{ github.event.inputs.Runtime_Depend_Update == 'true' }}
+        if: steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Runtime_Depend_Update == 'true'
         run: |
           sudo apt-get update
           sudo apt-get upgrade -y
@@ -1499,7 +1409,8 @@ jobs:
         #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
         uses: svenstaro/upload-release-action@2.11.5
         #if: github.event_name == 'release'
-        if: ${{ github.event.inputs.Upload_Binaries_To_Release == 'true' }}
+        #if: ${{ github.event.inputs.Upload_Binaries_To_Release == 'true' }} && steps.arbitrate.outputs.IS_WINNER == 'true'
+        if: $ github.event.inputs.Upload_Binaries_To_Release == 'true' && steps.arbitrate.outputs.IS_WINNER == 'true'
         with:
           repo_token: ${{ github.token }}          
           tag: ${{ env.TAG_NAME }}
