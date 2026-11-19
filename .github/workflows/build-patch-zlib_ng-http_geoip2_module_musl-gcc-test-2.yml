@@ -165,6 +165,7 @@ jobs:
           OPT=${{ steps.cpu_check.outputs.TARGET_OPT }}
           EOF
 
+      
       - name: Upload candidate artifact
         if: steps.cpu_check.outputs.MATCHED == 'true'
         uses: actions/upload-artifact@v7.0.2
@@ -173,36 +174,52 @@ jobs:
           path: candidate/meta.env
           retention-days: 1
 
-      
-      
-      # 仲裁：即便多个槽位同时抽中 v4，也只让编号最小的槽位成为唯一赢家
-      - name: Arbitrate single V4 winner
+      - name: Cancel other matrix jobs
+        if: steps.cpu_check.outputs.MATCHED == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OTHER_JOBS=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '.jobs[] | select(.status != "completed" and .name != "${{ github.job }} (${{ matrix.slot }})") | .id' || true)
+          for job_id in $OTHER_JOBS; do
+            gh api -X POST "repos/${{ github.repository }}/actions/jobs/$job_id/cancel" || true
+          done
+
+      - name: Arbitrate single winner
         id: arbitrate
         if: steps.cpu_check.outputs.MATCHED == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           sleep 3
-          mkdir -p /tmp/all-claims
+          mkdir -p /tmp/candidates
           gh run download "${{ github.run_id }}" --repo "${{ github.repository }}" \
-            -D /tmp/all-claims --pattern "v4-winner-slot-*" 2>/dev/null || true
+            -D /tmp/candidates --pattern "candidate-slot-*" 2>/dev/null || true
 
-          MIN_SLOT=$(find /tmp/all-claims -name "slot.env" -exec awk -F= '/^SLOT=/{print $2}' {} + \
-            | sort -n | head -n 1 || true)
+          FIRST_META=$(find /tmp/candidates -name "meta.env" | sort -V | head -n 1 || true)
+          if [ -z "$FIRST_META" ]; then
+            echo "❌ 未找到任何候选 meta.env"
+            exit 1
+          fi
 
-          echo "当前槽位: ${{ matrix.slot }}, 仲裁胜出槽位: ${MIN_SLOT:-${{ matrix.slot }}}"
-          if [ "${MIN_SLOT:-${{ matrix.slot }}}" = "${{ matrix.slot }}" ]; then
+          # shellcheck disable=SC1090
+          source "$FIRST_META"
+          echo "当前槽位: ${{ matrix.slot }}, 仲裁胜出槽位: ${SLOT}"
+          if [ "${SLOT}" = "${{ matrix.slot }}" ]; then
             echo "IS_WINNER=true" >> "$GITHUB_OUTPUT"
+            echo "OPTIMIZED_MARCH=${ARCH}" >> "$GITHUB_ENV"
+            echo "OPTIMIZED_FLAGS=${OPT}" >> "$GITHUB_ENV"
             echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
           else
-            echo "⏭️ 已有更优先的槽位 (${MIN_SLOT}) 胜出，本槽位退出编译与压测"
+            echo "⏭️ 已有更优先的槽位 (${SLOT}) 胜出，本槽位跳过编译与压测"
             echo "IS_WINNER=false" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+           
 
       - name: Checkout code
         if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
       
       # This workflow contains a single job called "build"
       #build:
@@ -235,13 +252,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: CPU instruction set architecture
-        # 使用重试插件，如果 exit 1 则会自动更换新机器重试
-        uses: nick-fields/retry@v4
-        with:
-          timeout_minutes: 2
-          max_attempts: 5 # 最多重试 X 次去刷机器
-          retry_on: error
-          command: |
+        run: |
             # 根据当前 runner 实际暴露的 CPU 指令集选择目标架构
             CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
                   print $2
@@ -317,8 +328,7 @@ jobs:
             echo "OPTIMIZED_FLAGS=$INPUT_OPT" >> "$GITHUB_ENV"
          
       
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v7.0.1
+     
       
       # Runs a set of commands using the runners shell
       - name: Runtime depend 
