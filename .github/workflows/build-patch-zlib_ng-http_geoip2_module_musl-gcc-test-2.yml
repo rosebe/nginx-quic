@@ -71,7 +71,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
-      contents: read
+      #contents: read
+      contents: write
     timeout-minutes: 60
     strategy:
       fail-fast: false
