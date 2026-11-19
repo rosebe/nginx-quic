@@ -1363,6 +1363,75 @@ jobs:
             echo "===== Runtime CPU ====="
             lscpu
      
+      - name: Summarize Stream & gRPC benchmark report
+        if: steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
+        run: |
+          set -euo pipefail
+          LOG_FILE="/tmp/nginx-bench/report/bench_raw.log"
+          SUMMARY_FILE="/tmp/nginx-bench/report/summary.md"
+
+          python3 - "$LOG_FILE" "$SUMMARY_FILE" "${{ env.OPTIMIZED_MARCH || 'unknown' }}" "${{ env.OPTIMIZED_FLAGS || 'unknown' }}" <<'PY'
+          import re, sys
+
+          log_path, out_path, march, flags = sys.argv[1:5]
+          text = open(log_path, encoding="utf-8", errors="replace").read()
+
+          cpu_model = (re.search(r"^Model name:\s*(.+)$", text, re.M) or [None, "unknown"])[1].strip()
+          cpu_list = (re.search(r"^On-line CPU\(s\) list:\s*(.+)$", text, re.M) or [None, "unknown"])[1].strip()
+
+          # 解析所有 wrk 块
+          wrk_blocks = re.findall(
+              r"Running\s+\S+\s+test\s+@\s+(\S+).*?"
+              r"Latency\s+(\S+)\s+\S+\s+(\S+).*?"
+              r"99%\s+(\S+).*?"
+              r"(\d+)\s+requests\s+in\s+(\S+).*?"
+              r"Requests/sec:\s*([0-9.]+)\s*"
+              r"Transfer/sec:\s*(\S+)",
+              text,
+              re.S,
+          )
+
+          # 解析 gRPC Summary 块
+          grpc_match = re.search(
+              r"Summary:\s*"
+              r"Count:\s*(\d+).*?"
+              r"Total:\s*([^\n]+).*?"
+              r"Slowest:\s*([^\n]+).*?"
+              r"Fastest:\s*([^\n]+).*?"
+              r"Average:\s*([^\n]+).*?"
+              r"Requests/sec:\s*([0-9.]+)",
+              text,
+              re.S,
+          )
+
+          lines = [
+              "## 压测结果汇总（Stream + gRPC）",
+              "",
+              f"- **CPU**: `{cpu_model}` (`On-line CPUs: {cpu_list}`)",
+              f"- **Arch / Flags**: `{march}` / `{flags}`",
+              "",
+              "| 场景 | 目标/说明 | 总请求 / 耗时 | Requests/sec | Transfer/sec | Avg 延迟 | P99 / 最慢延迟 |",
+              "|---|---|---:|---:|---:|---:|---:|",
+          ]
+
+          for idx, (target, avg, mx, p99, reqs, dur, rps, tps) in enumerate(wrk_blocks, 1):
+              lines.append(
+                  f"| Stream #{idx} | `{target}` | `{reqs}` / `{dur}` | **{rps}** | `{tps}` | `{avg}` | P99: `{p99}` (Max: `{mx}`) |"
+              )
+
+          if grpc_match:
+              cnt, tot, slowest, fastest, avg_g, rps_g = [x.strip() for x in grpc_match.groups()]
+              lines.append(
+                  f"| gRPC | `ghz summary` | `{cnt}` / `{tot}` | **{rps_g}** | `-` | `{avg_g}` | Slowest: `{slowest}` (Fastest: `{fastest}`) |"
+              )
+
+          report = "\n".join(lines) + "\n"
+          open(out_path, "w", encoding="utf-8").write(report)
+          print(report)
+          PY
+
+          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
+          
       - uses: actions/upload-artifact@v7.0.2
         if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         with:
