@@ -186,6 +186,10 @@ jobs:
             gh api -X POST "repos/${{ github.repository }}/actions/jobs/$job_id/cancel" || true
           done
 
+      - name: Wait for other slots to finish uploading
+        if: steps.cpu_check.outputs.MATCHED == 'true'
+        run: sleep 15
+
       - name: Download candidate artifacts
         if: steps.cpu_check.outputs.MATCHED == 'true'
         uses: actions/download-artifact@v4
@@ -199,7 +203,8 @@ jobs:
         if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
           set -euo pipefail
-          sleep 60
+          find /tmp/candidates -name "meta.env" | sort -V || true
+
           FIRST_META=$(find /tmp/candidates -name "meta.env" | sort -V | head -n 1 || true)
           if [ -z "$FIRST_META" ]; then
             echo "❌ 未找到任何候选 meta.env"
@@ -213,12 +218,12 @@ jobs:
             echo "IS_WINNER=true" >> "$GITHUB_OUTPUT"
             echo "OPTIMIZED_MARCH=${ARCH}" >> "$GITHUB_ENV"
             echo "OPTIMIZED_FLAGS=${OPT}" >> "$GITHUB_ENV"
-            #echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
+            echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
           else
             echo "⏭️ 已有更优先的槽位 (${SLOT}) 胜出，本槽位跳过编译与压测"
             echo "IS_WINNER=false" >> "$GITHUB_OUTPUT"
           fi
-
+           
       - name: Checkout code
         if: steps.arbitrate.outputs.IS_WINNER == 'true'
         uses: actions/checkout@v4
