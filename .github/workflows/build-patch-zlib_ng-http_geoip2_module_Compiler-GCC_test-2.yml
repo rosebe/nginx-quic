@@ -193,17 +193,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - name: Download candidate artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: candidate-slot-*
+          path: /tmp/candidates
+
       - name: Elect single winner from candidates
         id: elect_winner
         run: |
           set -euo pipefail
-          mkdir -p /tmp/candidates
-          # 若没有任何槽位中签，下载会失败，这里用 || true 交给下方统一判断
-          gh run download "${{ github.run_id }}" -D /tmp/candidates --pattern "candidate-slot-*" 2>/dev/null || true
-
+          ls -la /tmp/candidates || true
           FIRST_META=$(find /tmp/candidates -name "meta.env" | sort -V | head -n 1 || true)
           if [ -z "$FIRST_META" ]; then
-            echo "❌ 5 个槽位均未抽中符合要求的 Runner，终止编译"
+            echo "❌ 未找到任何候选 meta.env，请检查上方 download 步骤输出与 Artifacts 列表"
             exit 1
           fi
 
