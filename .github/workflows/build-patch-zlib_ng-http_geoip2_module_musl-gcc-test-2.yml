@@ -1410,7 +1410,7 @@ jobs:
         uses: svenstaro/upload-release-action@2.11.5
         #if: github.event_name == 'release'
         #if: ${{ github.event.inputs.Upload_Binaries_To_Release == 'true' }} && steps.arbitrate.outputs.IS_WINNER == 'true'
-        if: $ github.event.inputs.Upload_Binaries_To_Release == 'true' && steps.arbitrate.outputs.IS_WINNER == 'true'
+        if: github.event.inputs.Upload_Binaries_To_Release == 'true' && steps.arbitrate.outputs.IS_WINNER == 'true'
         with:
           repo_token: ${{ github.token }}          
           tag: ${{ env.TAG_NAME }}
