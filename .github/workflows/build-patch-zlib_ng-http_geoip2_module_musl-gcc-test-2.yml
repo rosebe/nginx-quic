@@ -259,6 +259,7 @@ jobs:
          #go version
          
       - name: CPU instruction set architecture again
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           # 根据当前 runner 实际暴露的 CPU 指令集选择目标架构
           CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
@@ -1363,6 +1364,7 @@ jobs:
             lscpu
      
       - uses: actions/upload-artifact@v7.0.2
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         with:
           name: nginx-quic
           path: ${{ github.workspace }}/nginx/objs/nginx
