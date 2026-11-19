@@ -185,45 +185,6 @@ jobs:
             gh api -X POST "repos/${{ github.repository }}/actions/jobs/$job_id/cancel" || true
           done
 
-      - name: Arbitrate single winner
-        id: arbitrate
-        if: steps.cpu_check.outputs.MATCHED == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          sleep 3
-          mkdir -p /tmp/candidates
-          gh run download "${{ github.run_id }}" --repo "${{ github.repository }}" \
-            -D /tmp/candidates --pattern "candidate-slot-*" 2>/dev/null || true
-
-          FIRST_META=$(find /tmp/candidates -name "meta.env" | sort -V | head -n 1 || true)
-          if [ -z "$FIRST_META" ]; then
-            echo "❌ 未找到任何候选 meta.env"
-            exit 1
-          fi
-
-          # shellcheck disable=SC1090
-          source "$FIRST_META"
-          echo "当前槽位: ${{ matrix.slot }}, 仲裁胜出槽位: ${SLOT}"
-          if [ "${SLOT}" = "${{ matrix.slot }}" ]; then
-            echo "IS_WINNER=true" >> "$GITHUB_OUTPUT"
-            echo "OPTIMIZED_MARCH=${ARCH}" >> "$GITHUB_ENV"
-            echo "OPTIMIZED_FLAGS=${OPT}" >> "$GITHUB_ENV"
-            echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
-          else
-            echo "⏭️ 已有更优先的槽位 (${SLOT}) 胜出，本槽位跳过编译与压测"
-            echo "IS_WINNER=false" >> "$GITHUB_OUTPUT"
-          fi
-           
-
-      - name: Checkout code
-        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
-        uses: actions/checkout@v7.0.1
-      
-      # This workflow contains a single job called "build"
-      #build:
-   
       - name: Download candidate artifacts
         uses: actions/download-artifact@v4
         continue-on-error: true
@@ -241,16 +202,37 @@ jobs:
             echo "❌ 未找到任何候选 meta.env，请检查上方 download 步骤输出与 Artifacts 列表"
             exit 1
           fi
-
+          
           # shellcheck disable=SC1090
           source "$FIRST_META"
+          echo "当前槽位: ${{ matrix.slot }}, 仲裁胜出槽位: ${SLOT}"
+          if [ "${SLOT}" = "${{ matrix.slot }}" ]; then
+            echo "IS_WINNER=true" >> "$GITHUB_OUTPUT"
+            echo "OPTIMIZED_MARCH=${ARCH}" >> "$GITHUB_ENV"
+            echo "OPTIMIZED_FLAGS=${OPT}" >> "$GITHUB_ENV"
+            echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
+          else
+            echo "⏭️ 已有更优先的槽位 (${SLOT}) 胜出，本槽位跳过编译与压测"
+            echo "IS_WINNER=false" >> "$GITHUB_OUTPUT"
+          fi       
+                     
           echo "✅ 唯一赢家: slot=${SLOT}, arch=${ARCH}, opt=${OPT}"
           echo "OPTIMIZED_MARCH=${ARCH}" >> "$GITHUB_ENV"
           echo "OPTIMIZED_FLAGS=${OPT}" >> "$GITHUB_ENV"
           #echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+              
+
+      - name: Checkout code
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
+        uses: actions/checkout@v7.0.1
       
+      # This workflow contains a single job called "build"
+      #build:
+   
+            
       - name: CPU instruction set architecture
         run: |
             # 根据当前 runner 实际暴露的 CPU 指令集选择目标架构
@@ -332,7 +314,7 @@ jobs:
       
       # Runs a set of commands using the runners shell
       - name: Runtime depend 
-        if: ${{ github.event.inputs.Runtime_Depend_Update == 'true' }} && ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
+        if: ${{ github.event.inputs.Runtime_Depend_Update == 'true' }}
         run: |
           sudo apt-get update
           sudo apt-get upgrade -y
@@ -954,6 +936,7 @@ jobs:
           CC: musl-gcc
           CXX: musl-g++
         if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
+        #if: steps.arbitrate.outputs.IS_WINNER == 'true'
         run: |
           git clone https://github.com/nginx/nginx.git
           cd nginx
@@ -1145,7 +1128,8 @@ jobs:
             
       
       - name: Comprehensive Stress Testing
-        if: ${{ github.event.inputs.Binaries_Stress_Testing == 'true' }} && ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
+        #if: ${{ github.event.inputs.Binaries_Stress_Testing == 'true' }} && ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
+        if: steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
         run: |
             # 1. [变量拼接协议 - 防裁剪]
             G_RAW="https://raw.githubusercontent.com"
@@ -1515,7 +1499,7 @@ jobs:
         #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
         uses: svenstaro/upload-release-action@2.11.5
         #if: github.event_name == 'release'
-        if: ${{ github.event.inputs.Upload_Binaries_To_Release == 'true' }} && ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
+        if: ${{ github.event.inputs.Upload_Binaries_To_Release == 'true' }}
         with:
           repo_token: ${{ github.token }}          
           tag: ${{ env.TAG_NAME }}
