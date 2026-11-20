@@ -160,13 +160,17 @@ jobs:
 
       - name: Write candidate metadata
         if: steps.cpu_check.outputs.MATCHED == 'true'
+        env:
+          SLOT_VALUE: ${{ matrix.slot }}
+          TARGET_ARCH: ${{ steps.cpu_check.outputs.TARGET_ARCH }}
+          TARGET_OPT: ${{ steps.cpu_check.outputs.TARGET_OPT }}
         run: |
           mkdir -p candidate
-          cat > candidate/meta.env <<EOF
-          SLOT=${{ matrix.slot }}
-          ARCH=${{ steps.cpu_check.outputs.TARGET_ARCH }}
-          OPT=${{ steps.cpu_check.outputs.TARGET_OPT }}
-          EOF
+          {
+            printf 'SLOT=%s\n' "$SLOT_VALUE"
+            printf 'ARCH=%s\n' "$TARGET_ARCH"
+            printf 'OPT=%q\n' "$TARGET_OPT"
+          } > candidate/meta.env
 
       - name: Upload candidate artifact
         if: steps.cpu_check.outputs.MATCHED == 'true'
