@@ -1203,7 +1203,6 @@ jobs:
             sudo "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf -T
             echo "✅ Nginx 配置文件结束"         
 
-
             # ==========================================
             # Benchmark Report Initialization
             # ==========================================
@@ -1257,13 +1256,11 @@ jobs:
             # A. Stream 压测优化
             echo ">>📊 A. Stream 压测优化..."
             # 精准训练方案：让 wrk 发起真正的 TLS 握手敲击 8443
-            # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练        
+            # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练
             run_bench "Stream #1" \
                 wrk -t2 -c200 -d12s --latency --timeout 2s \
                 -H "Host: example.com" \
                 https://127.0.0.1:8443
-            
-            
             sleep 10
             echo "📑 十秒后 二次压测"
             run_bench "Stream #2" \
@@ -1419,8 +1416,7 @@ jobs:
 
             echo "===== Runtime CPU ====="
             lscpu
-     
-      
+
       - name: Summarize Comprehensive Benchmark Report
         if: always() && steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
         shell: bash
@@ -1644,6 +1640,17 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Upload nginx
+        if: steps.arbitrate.outputs.IS_WINNER == 'true'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: nginx-quic
+          #path: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
+          path: ${{ github.workspace }}/nginx/objs/nginx
+
+      # Setting an environment variable
+      # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
+
       - name: Set variables
         id: step_one
         shell: bash
@@ -1697,7 +1704,7 @@ jobs:
           tag: ${{ env.TAG_NAME }}
           release_name: ${{ env.RELEASE_NAME }}
           asset_name: ${{ env.ASSET_NAME }}
-          file: ${{ github.workspace  }}/nginx/objs/nginx
+          file: ${{ github.workspace }}/nginx/objs/nginx
           body: |
             ### Nginx-Quic Build  
             ### Happy play !

@@ -67,20 +67,23 @@ env:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  pick-runner:
+  pick-and-build:
     runs-on: ubuntu-latest
     permissions:
       actions: write
-      contents: read
+      #contents: read
+      contents: write
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        slot: [1, 2, 3, 4, 5]
+        slot: [1, 2, 3, 4, 5, 6, 7]
 
     steps:
       - name: CPU instruction set architecture check
         id: cpu_check
         run: |
+          set -euo pipefail
           CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
                 print $2
                 exit
@@ -184,131 +187,51 @@ jobs:
             gh api -X POST "repos/${{ github.repository }}/actions/jobs/$job_id/cancel" || true
           done
 
-  
-  
-  # This workflow contains a single job called "build"
-  build:
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    needs: pick-runner
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
+      - name: Wait for other slots to finish uploading
+        if: steps.cpu_check.outputs.MATCHED == 'true'
+        run: sleep 15
+
       - name: Download candidate artifacts
-        uses: actions/download-artifact@v4
+        if: steps.cpu_check.outputs.MATCHED == 'true'
+        uses: actions/download-artifact@v8.0.2
         continue-on-error: true
         with:
           pattern: candidate-slot-*
           path: /tmp/candidates
 
-      - name: Elect single winner from candidates
-        id: elect_winner
+      - name: Arbitrate single winner
+        id: arbitrate
+        if: steps.cpu_check.outputs.MATCHED == 'true'
         run: |
           set -euo pipefail
-          ls -la /tmp/candidates || true
+          find /tmp/candidates -name "meta.env" | sort -V || true
+
           FIRST_META=$(find /tmp/candidates -name "meta.env" | sort -V | head -n 1 || true)
           if [ -z "$FIRST_META" ]; then
-            echo "❌ 未找到任何候选 meta.env，请检查上方 download 步骤输出与 Artifacts 列表"
+            echo "❌ 未找到任何候选 meta.env"
             exit 1
           fi
 
           # shellcheck disable=SC1090
           source "$FIRST_META"
-          echo "✅ 唯一赢家: slot=${SLOT}, arch=${ARCH}, opt=${OPT}"
-          echo "OPTIMIZED_MARCH=${ARCH}" >> "$GITHUB_ENV"
-          echo "OPTIMIZED_FLAGS=${OPT}" >> "$GITHUB_ENV"
-          #echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: CPU instruction set architecture
-        # 使用重试插件，如果 exit 1 则会自动更换新机器重试
-        uses: nick-fields/retry@v4
-        with:
-          timeout_minutes: 2
-          max_attempts: 5 # 最多重试 X 次去刷机器
-          retry_on: error
-          command: |
-            # 根据当前 runner 实际暴露的 CPU 指令集选择目标架构
-            CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
-                  print $2
-                  exit
-              }' /proc/cpuinfo) "
-  
-            has_flag() {
-                  case "$CPU_FLAGS" in
-                      *" $1 "*) return 0 ;;
-                      *)         return 1 ;;
-                  esac
-            }
-  
-            if has_flag avx512f &&
-                 has_flag avx512bw &&
-                 has_flag avx512cd &&
-                 has_flag avx512dq &&
-                 has_flag avx512vl; then
-  
-                  CURRENT_MARCH="x86-64-v4"
-  
-            elif has_flag avx2 &&
-                   has_flag bmi1 &&
-                   has_flag bmi2 &&
-                   has_flag fma &&
-                   has_flag f16c &&
-                   { has_flag lzcnt || has_flag abm; } &&
-                   has_flag movbe &&
-                   has_flag xsave; then
-  
-                  CURRENT_MARCH="x86-64-v3"
-  
-            else
-                  CURRENT_MARCH="x86-64"
-            fi
-  
-            
-            echo "✅ Runner_CURRENT_MARCH: $CURRENT_MARCH"
-            
-            echo "===== Detected CPU flags ====="
-            printf '%s\n' "$CPU_FLAGS"
-            
-            # 读取输入，并提供 release 触发时的默认回滚值
-            INPUT_ARCH="${{ github.event.inputs.arch_version }}"
-            INPUT_OPT="${{ github.event.inputs.optimize_flags }}"
-            if [ -z "$INPUT_ARCH" ]; then INPUT_ARCH="x86-64-v3"; fi
-            if [ -z "$INPUT_OPT" ]; then INPUT_OPT="-O3 -flto=auto"; fi
-         
-            # === 1. 定义架构权重（用于向下兼容判断） ===
-            get_weight() {
-                  case "$1" in
-                      "x86-64-v4") echo 4 ;;
-                      "x86-64-v3") echo 3 ;;
-                      "x86-64-v2") echo 2 ;; # 预留 v2 扩展
-                      *)           echo 1 ;; # 默认为基础 x86-64
-                  esac
-            }
-            
-            CURRENT_WEIGHT=$(get_weight "$CURRENT_MARCH")
-            TARGET_WEIGHT=$(get_weight "$INPUT_ARCH")
-            
-            # === 2. 比较权重 ===
-            if [ "$CURRENT_WEIGHT" -ge "$TARGET_WEIGHT" ]; then
-                  echo "✅ 架构兼容检查通过！(当前硬件: $CURRENT_MARCH >= 目标编译: $INPUT_ARCH)"
-            else
-                  echo "❌ 错误: 当前硬件架构不足以运行目标程序！"
-                  echo "当前硬件最高支持: $CURRENT_MARCH，但设定编译目标为: $INPUT_ARCH"
-                  exit 1
-            fi
-  
-            # === 3. 兼容检查通过后，写入环境变量 ===
-            echo "OPTIMIZED_MARCH=$INPUT_ARCH" >> "$GITHUB_ENV"
-            echo "OPTIMIZED_FLAGS=$INPUT_OPT" >> "$GITHUB_ENV"
-         
-      
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v7.0.1
-      
-      # Runs a set of commands using the runners shell
+          echo "当前槽位: ${{ matrix.slot }}, 仲裁胜出槽位: ${SLOT}"
+          if [ "${SLOT}" = "${{ matrix.slot }}" ]; then
+            echo "IS_WINNER=true" >> "$GITHUB_OUTPUT"
+            echo "OPTIMIZED_MARCH=${ARCH}" >> "$GITHUB_ENV"
+            echo "OPTIMIZED_FLAGS=${OPT}" >> "$GITHUB_ENV"
+            echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> "$GITHUB_ENV"
+          else
+            echo "⏭️ 已有更优先的槽位 (${SLOT}) 胜出，本槽位跳过编译与压测"
+            echo "IS_WINNER=false" >> "$GITHUB_OUTPUT"
+          fi
+           
+      - name: Checkout code
+        if: steps.arbitrate.outputs.IS_WINNER == 'true'
+        uses: actions/checkout@v7.0.1
+     
       - name: Runtime depend 
-        if: ${{ github.event.inputs.Runtime_Depend_Update == 'true' }}
+        #if: ${{ github.event.inputs.Runtime_Depend_Update == 'true' }}
+        if: steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Runtime_Depend_Update == 'true'
         run: |
           sudo apt-get update
           sudo apt-get upgrade -y
@@ -336,6 +259,7 @@ jobs:
          #go version
          
       - name: CPU instruction set architecture again
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           # 根据当前 runner 实际暴露的 CPU 指令集选择目标架构
           CPU_FLAGS=" $(awk -F ': ' '/^flags[[:space:]]*:/ {
@@ -418,6 +342,7 @@ jobs:
           echo "✅ OPTIMIZED_FLAGS: ${{ env.OPTIMIZED_FLAGS }}"
       
       - name: Setup GCC environment
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         uses: egor-tensin/setup-gcc@v2.0.3
         with:
          version: 16
@@ -435,6 +360,7 @@ jobs:
           ###sudo ln -s /usr/include/asm /usr/include/x86_64-linux-musl/asm
           
       - name: Verify installation
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
            # 验证两个编译器是否正常工作
            #musl-gcc --version
@@ -456,6 +382,7 @@ jobs:
           #CC: musl-gcc
           #CXX: musl-g++
           OPENSSL_COMMIT_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           # 1. 深度拉取指定分支并精准同步子模块
           git clone --recurse-submodules -b openssl-4.1 --depth 1 -j8 https://github.com/openssl/openssl.git
@@ -517,6 +444,7 @@ jobs:
           #CC: musl-gcc
           #CXX: musl-g++
           Brotli_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli.git
           cd ngx_brotli/deps/brotli
@@ -601,6 +529,7 @@ jobs:
           #CC: musl-gcc
           #CXX: musl-g++
           zlib-ng_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           git clone https://github.com/zlib-ng/zlib-ng.git
           cd zlib-ng
@@ -645,6 +574,7 @@ jobs:
       - name: zstd [Static build & install with gcc]
         env:
           zstd_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           # 1. 检出轻量化源码并清理旧缓存
           git clone --depth 1 https://github.com/facebook/zstd.git
@@ -691,6 +621,7 @@ jobs:
           ls -lh "${{ github.workspace }}/zstd/installed/include"
        
       - name: zstd-nginx-module
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           git clone https://github.com/tokers/zstd-nginx-module.git
           #cd zstd-nginx-module
@@ -702,6 +633,7 @@ jobs:
           #CC: musl-gcc
           #CXX: musl-g++
           Pcre2_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           # 1. 克隆源码并同步子模块（JIT 引擎依赖 SLJIT 子模块，必须加 --recurse-submodules）
           git clone --recurse-submodules https://github.com/PCRE2Project/pcre2.git
@@ -749,6 +681,7 @@ jobs:
           #CC: musl-gcc
           #CXX: musl-g++
           libmaxminddb_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           git clone --recursive -j8 https://github.com/maxmind/libmaxminddb.git
           cd libmaxminddb
@@ -784,11 +717,13 @@ jobs:
           ls -lh "${{ github.workspace }}/libmaxminddb/installed/include"
        
       - name: geoip2-nginx-module
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           git clone https://github.com/leev/ngx_http_geoip2_module.git
           
       
       - name: Build time
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           echo "nginx_build_time=$(date +%Y_%m_%d-%H:%M:%S)" >> $GITHUB_ENV
     
@@ -798,6 +733,7 @@ jobs:
           #CXX: musl-g++
           nginx_Commit_ID_LOCAL: f89540d7ccf89d91d4bc3c6fafd0c0a3585a4457
         
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           git clone https://github.com/nginx/nginx.git
           cd nginx
@@ -939,6 +875,7 @@ jobs:
       
               
       - name: Strip and Package
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           #NGINX_TEST="/home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx"
           NGINX_TEST="${{ github.workspace }}/nginx/objs/nginx"
@@ -979,6 +916,7 @@ jobs:
       
       
       - name: Verify
+        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
         run: |
           # 验证是否为静态链接
           # 验证生成的二进制文件是否为“纯静态”
@@ -989,7 +927,7 @@ jobs:
             
       
       - name: Comprehensive Stress Testing
-        if: ${{ github.event.inputs.Binaries_Stress_Testing == 'true' }}
+        if: steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
         run: |
             # 1. [变量拼接协议 - 防裁剪]
             G_RAW="https://raw.githubusercontent.com"
@@ -1145,7 +1083,53 @@ jobs:
             sudo "$NGINX_BIN" -c /tmp/pgo-run/pgo.conf -T
             echo "✅ Nginx 配置文件结束"         
 
+            # ==========================================
+            # Benchmark Report Initialization
+            # ==========================================
 
+            REPORT_DIR="/tmp/nginx-bench/report"
+            LOG_FILE="${REPORT_DIR}/bench_raw.log"
+            SUMMARY_FILE="${REPORT_DIR}/summary.md"
+
+            mkdir -p "${REPORT_DIR}"
+
+            # 每次 CI 运行重新创建原始日志
+            : > "${LOG_FILE}"
+
+            echo "==========================================" | tee -a "${LOG_FILE}"
+            echo "Nginx Comprehensive Benchmark" | tee -a "${LOG_FILE}"
+            echo "Date: $(date -Is)" | tee -a "${LOG_FILE}"
+            echo "Architecture: ${{ env.OPTIMIZED_MARCH || 'unknown' }}" | tee -a "${LOG_FILE}"
+            echo "Flags: ${{ env.OPTIMIZED_FLAGS || 'unknown' }}" | tee -a "${LOG_FILE}"
+            echo "==========================================" | tee -a "${LOG_FILE}"
+
+            # 保存 CPU 信息，供 Python 汇总
+            lscpu 2>&1 | tee -a "${LOG_FILE}"
+
+            echo "===== Benchmark Log Initialized =====" | tee -a "${LOG_FILE}"
+            
+            # 统一执行压测并保存完整输出
+            run_bench() {
+                local label="$1"
+                shift
+
+                {
+                    echo ""
+                    echo "=========================================="
+                    echo "TEST: ${label}"
+                    echo "TIME: $(date -Is)"
+                    echo "COMMAND: $*"
+                    echo "=========================================="
+                } | tee -a "${LOG_FILE}"
+
+                "$@" 2>&1 | tee -a "${LOG_FILE}"
+                local status=${PIPESTATUS[0]}
+
+                echo "EXIT_CODE: ${status}" | tee -a "${LOG_FILE}"
+
+                return "${status}"
+            }
+            
             # 6. [精准压测]
             echo ""
             echo "👉  精准压测开始  👈 "
@@ -1153,11 +1137,13 @@ jobs:
             echo ">>📊 A. Stream 压测优化..."
             # 精准训练方案：让 wrk 发起真正的 TLS 握手敲击 8443
             # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练
-            wrk -t2 -c200 -d12s --latency --timeout 2s \
+            run_bench "Stream #1" \
+                wrk -t2 -c200 -d12s --latency --timeout 2s \
                 -H "Host: example.com" \
                 https://127.0.0.1:8443
             sleep 10
             echo "📑 十秒后 二次压测"
+            run_bench "Stream #2" \
             wrk -t2 -c200 -d12s --latency --timeout 2s \
                 -H "Host: example.com" \
                 https://127.0.0.1:8443
@@ -1175,11 +1161,13 @@ jobs:
             # -c 100: 保持 100 个并发连接
             # -n 20000: 提升到 2 万次请求，确保压测持续一定时间
             # --timeout 2s: 避免慢请求卡住
+            run_bench "gRPC #1" \
             ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
                 --call helloworld.Greeter.SayHello \
                 -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
             sleep 10
             echo "📑 十秒后 二次压测"
+            run_bench "gRPC #2" \
             ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
                 --call helloworld.Greeter.SayHello \
                 -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true 
@@ -1193,6 +1181,7 @@ jobs:
             # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
             # 这样可以让 CPU 满载，以便 GCC 精准捕捉热点函数
             #wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" --latency http://127.0.0.1:8081
+            run_bench "WebSocket #1" \
             wrk -t2 -c200 -d12s --latency \
                 -H "Upgrade: websocket" \
                 -H "Connection: Upgrade" \
@@ -1201,6 +1190,7 @@ jobs:
                  http://127.0.0.1:8081/ws
             sleep 10
             echo "📑 十秒后 二次压测"
+            run_bench "WebSocket #2" \
             wrk -t2 -c200 -d12s --latency \
                 -H "Upgrade: websocket" \
                 -H "Connection: Upgrade" \
@@ -1213,6 +1203,7 @@ jobs:
             # ==================================================
             echo ">>📊 D. HTTP 模块的 TLS/HTTPS 状态机 压测优化..."
             # 使用 wrk 直接压测 8082 端口，由于走的是标准的 HTTPS，Nginx 的 TLS 握手、解密、ASN1 别名解析等核心热点代码将被完全灌满！
+            run_bench "HTTPS TLS #1" \
             wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
                 # ├─ -t2       : 使用 2 个操作系统线程（Threads）
                 # ├─ -c100     : 维持 100 个总并发连接（Connections）
@@ -1221,6 +1212,7 @@ jobs:
                 # └─ https://...: 目标服务的 HTTPS 地址（端口 8082），触发 TLS 握手和加解密逻辑
             sleep 10
             echo "📑 十秒后 二次压测"
+            run_bench "HTTPS TLS #2" \
             wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
 
             echo ""
@@ -1305,9 +1297,232 @@ jobs:
             echo "===== Runtime CPU ====="
             lscpu
 
-                 
+      - name: Summarize Comprehensive Benchmark Report
+        if: always() && steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REPORT_DIR="/tmp/nginx-bench/report"
+          LOG_FILE="${REPORT_DIR}/bench_raw.log"
+          SUMMARY_FILE="${REPORT_DIR}/summary.md"
+
+          mkdir -p "${REPORT_DIR}"
+
+          # 即使前面的压测步骤提前失败，也保证报告脚本有输入文件
+          if [ ! -f "${LOG_FILE}" ]; then
+              echo "Benchmark did not produce a raw log." > "${LOG_FILE}"
+          fi
+
+          python3 - "$LOG_FILE" "$SUMMARY_FILE" "${{ env.OPTIMIZED_MARCH || 'unknown' }}" "${{ env.OPTIMIZED_FLAGS || 'unknown' }}" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          log_path, out_path, march, flags = sys.argv[1:5]
+
+          raw = Path(log_path).read_text(
+              encoding="utf-8",
+              errors="replace"
+          )
+
+          # CPU 信息
+          def extract(pattern, default="unknown"):
+              m = re.search(pattern, raw, re.M)
+              return m.group(1).strip() if m else default
+
+          cpu_model = extract(r"^Model name:\s*(.+)$")
+          cpu_list = extract(r"^On-line CPU\(s\) list:\s*(.+)$")
+
+          # 报告表格
+          lines = [
+              "# Nginx Comprehensive Benchmark Report",
+              "",
+              "## Environment",
+              "",
+              f"- CPU: `{cpu_model}`",
+              f"- Online CPUs: `{cpu_list}`",
+              f"- Architecture: `{march}`",
+              f"- Compiler Flags: `{flags}`",
+              "",
+              "## Benchmark Results",
+              "",
+              "| Test | Target | Requests / Duration | Requests/sec | Transfer/sec | Avg Latency | P99 / Max |",
+              "|---|---|---:|---:|---:|---:|---:|",
+          ]
+
+          # 按照 TEST 标签拆分各次测试
+          sections = re.split(
+              r"(?m)^TEST:\s*(.+)$",
+              raw
+          )
+
+          wrk_count = 0
+          grpc_count = 0
+
+          for i in range(1, len(sections), 2):
+
+              label = sections[i].strip()
+              block = sections[i + 1] if i + 1 < len(sections) else ""
+
+              # -----------------------------
+              # wrk 结果解析
+              # -----------------------------
+              running = re.search(
+                  r"Running\s+\S+\s+test\s+@\s+(\S+)",
+                  block
+              )
+
+              if running:
+
+                  target = running.group(1)
+
+                  latency = re.search(
+                      r"(?m)^\s*Latency\s+(\S+)\s+\S+\s+(\S+)",
+                      block
+                  )
+
+                  p99 = re.search(
+                      r"(?m)^\s*99%\s+(\S+)",
+                      block
+                  )
+
+                  requests = re.search(
+                      r"(\d+)\s+requests\s+in\s+(\S+)",
+                      block
+                  )
+
+                  rps = re.search(
+                      r"Requests/sec:\s*([0-9.]+)",
+                      block
+                  )
+
+                  transfer = re.search(
+                      r"Transfer/sec:\s*(\S+)",
+                      block
+                  )
+
+                  if requests and rps:
+
+                      wrk_count += 1
+
+                      avg = latency.group(1) if latency else "-"
+                      mx = latency.group(2) if latency else "-"
+                      p99_value = p99.group(1) if p99 else "-"
+                      tps = transfer.group(1) if transfer else "-"
+
+                      lines.append(
+                          f"| {label} | `{target}` | "
+                          f"`{requests.group(1)}` / `{requests.group(2)}` | "
+                          f"**{rps.group(1)}** | `{tps}` | "
+                          f"`{avg}` | P99: `{p99_value}` (Max: `{mx}`) |"
+                      )
+
+                      continue
+
+              # -----------------------------
+              # gRPC 结果解析
+              # -----------------------------
+              if "Summary:" in block:
+
+                  grpc_match = re.search(
+                      r"Summary:\s*"
+                      r"Count:\s*(\d+)\s*"
+                      r"Total:\s*([^\n]+)\s*"
+                      r"Slowest:\s*([^\n]+)\s*"
+                      r"Fastest:\s*([^\n]+)\s*"
+                      r"Average:\s*([^\n]+)\s*"
+                      r"Requests/sec:\s*([^\n]+)",
+                      block,
+                      re.S
+                  )
+
+                  if grpc_match:
+
+                      cnt, total, slowest, fastest, avg, rps = [
+                          x.strip()
+                          for x in grpc_match.groups()
+                      ]
+
+                      grpc_count += 1
+
+                      lines.append(
+                          f"| {label} | `ghz summary` | "
+                          f"`{cnt}` / `{total}` | "
+                          f"**{rps}** | `-` | `{avg}` | "
+                          f"Slowest: `{slowest}` "
+                          f"(Fastest: `{fastest}`) |"
+                      )
+
+          # -----------------------------
+          # 测试统计
+          # -----------------------------
+          lines.extend([
+              "",
+              "## Test Statistics",
+              "",
+              f"- Stream / HTTP / HTTPS wrk tests: **{wrk_count}**",
+              f"- gRPC tests: **{grpc_count}**",
+              f"- Total parsed tests: **{wrk_count + grpc_count}**",
+              "",
+          ])
+
+          if wrk_count < 6:
+              lines.append(
+                  f"> Warning: Expected 6 wrk results, parsed {wrk_count}."
+              )
+              lines.append("")
+
+          if grpc_count < 2:
+              lines.append(
+                  f"> Warning: Expected 2 gRPC results, parsed {grpc_count}."
+              )
+              lines.append("")
+
+          # -----------------------------
+          # 原始日志位置
+          # -----------------------------
+          lines.extend([
+              "## Raw Benchmark Log",
+              "",
+              f"- File: `{log_path}`",
+              "",
+              "Full benchmark output is preserved in `bench_raw.log`.",
+              "",
+          ])
+
+          report = "\n".join(lines)
+
+          Path(out_path).write_text(
+              report + "\n",
+              encoding="utf-8"
+          )
+
+          print(report)
+          print(f"\nSummary saved: {out_path}")
+
+          PY
+
+          echo "===== Generated Files ====="
+          ls -lh "${REPORT_DIR}"
+
+          # 写入 GitHub Actions Summary
+          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
+
       
-      - uses: actions/upload-artifact@v7.0.2
+      
+      - name: Upload Benchmark Reports
+        if: always() && steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: nginx-comprehensive-benchmark
+          path: /tmp/nginx-bench/report/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload nginx
+        if: steps.arbitrate.outputs.IS_WINNER == 'true'
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: nginx-quic
           #path: /home/runner/work/nginx-quic/nginx-quic/nginx/objs/nginx
@@ -1315,7 +1530,7 @@ jobs:
 
       # Setting an environment variable
       # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
-      
+
       - name: Set variables
         id: step_one
         shell: bash
@@ -1362,7 +1577,8 @@ jobs:
         #uses: svenstaro/upload-release-action@1b2bf5c959aebf44ffded0b72f8bdc5737400da1
         uses: svenstaro/upload-release-action@2.11.5
         #if: github.event_name == 'release'
-        if: ${{ github.event.inputs.Upload_Binaries_To_Release == 'true' }}
+        #if: ${{ github.event.inputs.Upload_Binaries_To_Release == 'true' }} && steps.arbitrate.outputs.IS_WINNER == 'true'
+        if: github.event.inputs.Upload_Binaries_To_Release == 'true' && steps.arbitrate.outputs.IS_WINNER == 'true'
         with:
           repo_token: ${{ github.token }}          
           tag: ${{ env.TAG_NAME }}
