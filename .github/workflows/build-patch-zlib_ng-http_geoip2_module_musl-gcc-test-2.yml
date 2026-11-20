@@ -1204,18 +1204,69 @@ jobs:
             echo "✅ Nginx 配置文件结束"         
 
 
+            # ==========================================
+            # Benchmark Report Initialization
+            # ==========================================
+
+            REPORT_DIR="/tmp/nginx-bench/report"
+            LOG_FILE="${REPORT_DIR}/bench_raw.log"
+            SUMMARY_FILE="${REPORT_DIR}/summary.md"
+
+            mkdir -p "${REPORT_DIR}"
+
+            # 每次 CI 运行重新创建原始日志
+            : > "${LOG_FILE}"
+
+            echo "==========================================" | tee -a "${LOG_FILE}"
+            echo "Nginx Comprehensive Benchmark" | tee -a "${LOG_FILE}"
+            echo "Date: $(date -Is)" | tee -a "${LOG_FILE}"
+            echo "Architecture: ${{ env.OPTIMIZED_MARCH || 'unknown' }}" | tee -a "${LOG_FILE}"
+            echo "Flags: ${{ env.OPTIMIZED_FLAGS || 'unknown' }}" | tee -a "${LOG_FILE}"
+            echo "==========================================" | tee -a "${LOG_FILE}"
+
+            # 保存 CPU 信息，供 Python 汇总
+            lscpu 2>&1 | tee -a "${LOG_FILE}"
+
+            echo "===== Benchmark Log Initialized =====" | tee -a "${LOG_FILE}"
+            
+            # 统一执行压测并保存完整输出
+            run_bench() {
+                local label="$1"
+                shift
+
+                {
+                    echo ""
+                    echo "=========================================="
+                    echo "TEST: ${label}"
+                    echo "TIME: $(date -Is)"
+                    echo "COMMAND: $*"
+                    echo "=========================================="
+                } | tee -a "${LOG_FILE}"
+
+                "$@" 2>&1 | tee -a "${LOG_FILE}"
+                local status=${PIPESTATUS[0]}
+
+                echo "EXIT_CODE: ${status}" | tee -a "${LOG_FILE}"
+
+                return "${status}"
+            }
+            
             # 6. [精准压测]
             echo ""
             echo "👉  精准压测开始  👈 "
             # A. Stream 压测优化
             echo ">>📊 A. Stream 压测优化..."
             # 精准训练方案：让 wrk 发起真正的 TLS 握手敲击 8443
-            # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练
-            wrk -t2 -c200 -d12s --latency --timeout 2s \
+            # 加上 --timeout 确保 Actions 稳定，由于 8082 拥有完美证书，这里将打通真正的双层 TLS 闭环训练        
+            run_bench "Stream #1" \
+                wrk -t2 -c200 -d12s --latency --timeout 2s \
                 -H "Host: example.com" \
                 https://127.0.0.1:8443
+            
+            
             sleep 10
             echo "📑 十秒后 二次压测"
+            run_bench "Stream #2" \
             wrk -t2 -c200 -d12s --latency --timeout 2s \
                 -H "Host: example.com" \
                 https://127.0.0.1:8443
@@ -1233,11 +1284,13 @@ jobs:
             # -c 100: 保持 100 个并发连接
             # -n 20000: 提升到 2 万次请求，确保压测持续一定时间
             # --timeout 2s: 避免慢请求卡住
+            run_bench "gRPC #1" \
             ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
                 --call helloworld.Greeter.SayHello \
                 -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true
             sleep 10
             echo "📑 十秒后 二次压测"
+            run_bench "gRPC #2" \
             ghz --insecure --proto /tmp/pgo-run/proto/helloworld.proto \
                 --call helloworld.Greeter.SayHello \
                 -c 200 -n 30000 --timeout 2s --keepalive 10s 127.0.0.1:8081 || true 
@@ -1251,6 +1304,7 @@ jobs:
             # 假设测试机有 4 核（-t4），并发提升到 200（-c200），时间保持 10~15 秒（-d12s）
             # 这样可以让 CPU 满载，以便 GCC 精准捕捉热点函数
             #wrk -t2 -c200 -d12s -H "Upgrade: websocket" -H "Connection: Upgrade" --latency http://127.0.0.1:8081
+            run_bench "WebSocket #1" \
             wrk -t2 -c200 -d12s --latency \
                 -H "Upgrade: websocket" \
                 -H "Connection: Upgrade" \
@@ -1259,6 +1313,7 @@ jobs:
                  http://127.0.0.1:8081/ws
             sleep 10
             echo "📑 十秒后 二次压测"
+            run_bench "WebSocket #2" \
             wrk -t2 -c200 -d12s --latency \
                 -H "Upgrade: websocket" \
                 -H "Connection: Upgrade" \
@@ -1271,6 +1326,7 @@ jobs:
             # ==================================================
             echo ">>📊 D. HTTP 模块的 TLS/HTTPS 状态机 压测优化..."
             # 使用 wrk 直接压测 8082 端口，由于走的是标准的 HTTPS，Nginx 的 TLS 握手、解密、ASN1 别名解析等核心热点代码将被完全灌满！
+            run_bench "HTTPS TLS #1" \
             wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
                 # ├─ -t2       : 使用 2 个操作系统线程（Threads）
                 # ├─ -c100     : 维持 100 个总并发连接（Connections）
@@ -1279,6 +1335,7 @@ jobs:
                 # └─ https://...: 目标服务的 HTTPS 地址（端口 8082），触发 TLS 握手和加解密逻辑
             sleep 10
             echo "📑 十秒后 二次压测"
+            run_bench "HTTPS TLS #2" \
             wrk -t2 -c200 -d10s --latency https://127.0.0.1:8082
 
             echo ""
@@ -1363,84 +1420,230 @@ jobs:
             echo "===== Runtime CPU ====="
             lscpu
      
-      - name: Summarize Stream & gRPC benchmark report
-        if: steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
+      
+      - name: Summarize Comprehensive Benchmark Report
+        if: always() && steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
+        shell: bash
         run: |
           set -euo pipefail
-          LOG_FILE="/tmp/nginx-bench/report/bench_raw.log"
-          SUMMARY_FILE="/tmp/nginx-bench/report/summary.md"
+
+          REPORT_DIR="/tmp/nginx-bench/report"
+          LOG_FILE="${REPORT_DIR}/bench_raw.log"
+          SUMMARY_FILE="${REPORT_DIR}/summary.md"
+
+          mkdir -p "${REPORT_DIR}"
+
+          # 即使前面的压测步骤提前失败，也保证报告脚本有输入文件
+          if [ ! -f "${LOG_FILE}" ]; then
+              echo "Benchmark did not produce a raw log." > "${LOG_FILE}"
+          fi
 
           python3 - "$LOG_FILE" "$SUMMARY_FILE" "${{ env.OPTIMIZED_MARCH || 'unknown' }}" "${{ env.OPTIMIZED_FLAGS || 'unknown' }}" <<'PY'
-          import re, sys
+          import re
+          import sys
+          from pathlib import Path
 
           log_path, out_path, march, flags = sys.argv[1:5]
-          text = open(log_path, encoding="utf-8", errors="replace").read()
 
-          cpu_model = (re.search(r"^Model name:\s*(.+)$", text, re.M) or [None, "unknown"])[1].strip()
-          cpu_list = (re.search(r"^On-line CPU\(s\) list:\s*(.+)$", text, re.M) or [None, "unknown"])[1].strip()
-
-          # 解析所有 wrk 块
-          wrk_blocks = re.findall(
-              r"Running\s+\S+\s+test\s+@\s+(\S+).*?"
-              r"Latency\s+(\S+)\s+\S+\s+(\S+).*?"
-              r"99%\s+(\S+).*?"
-              r"(\d+)\s+requests\s+in\s+(\S+).*?"
-              r"Requests/sec:\s*([0-9.]+)\s*"
-              r"Transfer/sec:\s*(\S+)",
-              text,
-              re.S,
+          raw = Path(log_path).read_text(
+              encoding="utf-8",
+              errors="replace"
           )
 
-          # 解析 gRPC Summary 块
-          grpc_match = re.search(
-              r"Summary:\s*"
-              r"Count:\s*(\d+).*?"
-              r"Total:\s*([^\n]+).*?"
-              r"Slowest:\s*([^\n]+).*?"
-              r"Fastest:\s*([^\n]+).*?"
-              r"Average:\s*([^\n]+).*?"
-              r"Requests/sec:\s*([0-9.]+)",
-              text,
-              re.S,
-          )
+          # CPU 信息
+          def extract(pattern, default="unknown"):
+              m = re.search(pattern, raw, re.M)
+              return m.group(1).strip() if m else default
 
+          cpu_model = extract(r"^Model name:\s*(.+)$")
+          cpu_list = extract(r"^On-line CPU\(s\) list:\s*(.+)$")
+
+          # 报告表格
           lines = [
-              "## 压测结果汇总（Stream + gRPC）",
+              "# Nginx Comprehensive Benchmark Report",
               "",
-              f"- **CPU**: `{cpu_model}` (`On-line CPUs: {cpu_list}`)",
-              f"- **Arch / Flags**: `{march}` / `{flags}`",
+              "## Environment",
               "",
-              "| 场景 | 目标/说明 | 总请求 / 耗时 | Requests/sec | Transfer/sec | Avg 延迟 | P99 / 最慢延迟 |",
+              f"- CPU: `{cpu_model}`",
+              f"- Online CPUs: `{cpu_list}`",
+              f"- Architecture: `{march}`",
+              f"- Compiler Flags: `{flags}`",
+              "",
+              "## Benchmark Results",
+              "",
+              "| Test | Target | Requests / Duration | Requests/sec | Transfer/sec | Avg Latency | P99 / Max |",
               "|---|---|---:|---:|---:|---:|---:|",
           ]
 
-          for idx, (target, avg, mx, p99, reqs, dur, rps, tps) in enumerate(wrk_blocks, 1):
-              lines.append(
-                  f"| Stream #{idx} | `{target}` | `{reqs}` / `{dur}` | **{rps}** | `{tps}` | `{avg}` | P99: `{p99}` (Max: `{mx}`) |"
+          # 按照 TEST 标签拆分各次测试
+          sections = re.split(
+              r"(?m)^TEST:\s*(.+)$",
+              raw
+          )
+
+          wrk_count = 0
+          grpc_count = 0
+
+          for i in range(1, len(sections), 2):
+
+              label = sections[i].strip()
+              block = sections[i + 1] if i + 1 < len(sections) else ""
+
+              # -----------------------------
+              # wrk 结果解析
+              # -----------------------------
+              running = re.search(
+                  r"Running\s+\S+\s+test\s+@\s+(\S+)",
+                  block
               )
 
-          if grpc_match:
-              cnt, tot, slowest, fastest, avg_g, rps_g = [x.strip() for x in grpc_match.groups()]
-              lines.append(
-                  f"| gRPC | `ghz summary` | `{cnt}` / `{tot}` | **{rps_g}** | `-` | `{avg_g}` | Slowest: `{slowest}` (Fastest: `{fastest}`) |"
-              )
+              if running:
 
-          report = "\n".join(lines) + "\n"
-          open(out_path, "w", encoding="utf-8").write(report)
+                  target = running.group(1)
+
+                  latency = re.search(
+                      r"(?m)^\s*Latency\s+(\S+)\s+\S+\s+(\S+)",
+                      block
+                  )
+
+                  p99 = re.search(
+                      r"(?m)^\s*99%\s+(\S+)",
+                      block
+                  )
+
+                  requests = re.search(
+                      r"(\d+)\s+requests\s+in\s+(\S+)",
+                      block
+                  )
+
+                  rps = re.search(
+                      r"Requests/sec:\s*([0-9.]+)",
+                      block
+                  )
+
+                  transfer = re.search(
+                      r"Transfer/sec:\s*(\S+)",
+                      block
+                  )
+
+                  if requests and rps:
+
+                      wrk_count += 1
+
+                      avg = latency.group(1) if latency else "-"
+                      mx = latency.group(2) if latency else "-"
+                      p99_value = p99.group(1) if p99 else "-"
+                      tps = transfer.group(1) if transfer else "-"
+
+                      lines.append(
+                          f"| {label} | `{target}` | "
+                          f"`{requests.group(1)}` / `{requests.group(2)}` | "
+                          f"**{rps.group(1)}** | `{tps}` | "
+                          f"`{avg}` | P99: `{p99_value}` (Max: `{mx}`) |"
+                      )
+
+                      continue
+
+              # -----------------------------
+              # gRPC 结果解析
+              # -----------------------------
+              if "Summary:" in block:
+
+                  grpc_match = re.search(
+                      r"Summary:\s*"
+                      r"Count:\s*(\d+)\s*"
+                      r"Total:\s*([^\n]+)\s*"
+                      r"Slowest:\s*([^\n]+)\s*"
+                      r"Fastest:\s*([^\n]+)\s*"
+                      r"Average:\s*([^\n]+)\s*"
+                      r"Requests/sec:\s*([^\n]+)",
+                      block,
+                      re.S
+                  )
+
+                  if grpc_match:
+
+                      cnt, total, slowest, fastest, avg, rps = [
+                          x.strip()
+                          for x in grpc_match.groups()
+                      ]
+
+                      grpc_count += 1
+
+                      lines.append(
+                          f"| {label} | `ghz summary` | "
+                          f"`{cnt}` / `{total}` | "
+                          f"**{rps}** | `-` | `{avg}` | "
+                          f"Slowest: `{slowest}` "
+                          f"(Fastest: `{fastest}`) |"
+                      )
+
+          # -----------------------------
+          # 测试统计
+          # -----------------------------
+          lines.extend([
+              "",
+              "## Test Statistics",
+              "",
+              f"- Stream / HTTP / HTTPS wrk tests: **{wrk_count}**",
+              f"- gRPC tests: **{grpc_count}**",
+              f"- Total parsed tests: **{wrk_count + grpc_count}**",
+              "",
+          ])
+
+          if wrk_count < 6:
+              lines.append(
+                  f"> Warning: Expected 6 wrk results, parsed {wrk_count}."
+              )
+              lines.append("")
+
+          if grpc_count < 2:
+              lines.append(
+                  f"> Warning: Expected 2 gRPC results, parsed {grpc_count}."
+              )
+              lines.append("")
+
+          # -----------------------------
+          # 原始日志位置
+          # -----------------------------
+          lines.extend([
+              "## Raw Benchmark Log",
+              "",
+              f"- File: `{log_path}`",
+              "",
+              "Full benchmark output is preserved in `bench_raw.log`.",
+              "",
+          ])
+
+          report = "\n".join(lines)
+
+          Path(out_path).write_text(
+              report + "\n",
+              encoding="utf-8"
+          )
+
           print(report)
+          print(f"\nSummary saved: {out_path}")
+
           PY
 
+          echo "===== Generated Files ====="
+          ls -lh "${REPORT_DIR}"
+
+          # 写入 GitHub Actions Summary
           cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
-          
-      - uses: actions/upload-artifact@v7.0.2
-        if: ${{ steps.arbitrate.outputs.IS_WINNER == 'true' }}
-        with:
-          name: nginx-quic
-          path: ${{ github.workspace }}/nginx/objs/nginx
-          
-      # Setting an environment variable
-      # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
+
       
+      
+      - name: Upload Benchmark Reports
+        if: always() && steps.arbitrate.outputs.IS_WINNER == 'true' && github.event.inputs.Binaries_Stress_Testing == 'true'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: nginx-comprehensive-benchmark
+          path: /tmp/nginx-bench/report/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Set variables
         id: step_one
         shell: bash
