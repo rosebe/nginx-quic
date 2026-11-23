@@ -4,7 +4,7 @@
 
 使用GitHub Action编译nginx-quic，基于最新源码 :<br>
 (https://github.com/nginx)<br>
-(https://hg.nginx.org/nginx-quic) <br>
+(https://hg.nginx.org/nginx-quic) 已弃用 <br>
 
 #### [测试你的浏览器对quic的支持](https://quic.nginx.org/quic.html)
 #### [测试服务器对HTTP/3的支持](https://http3check.net)
