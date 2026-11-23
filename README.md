@@ -1,9 +1,9 @@
 ## nginx-quic
-[![build nginx_quic_openssl_geoip2](https://github.com/rosebe/nginx-quic/actions/workflows/build_openssl_geoip2.yml/badge.svg)](https://github.com/rosebe/nginx-quic/actions/workflows/build_openssl_geoip2.yml)
-[![build nginx_quic_openssl](https://github.com/rosebe/nginx-quic/actions/workflows/build_openssl.yml/badge.svg)](https://github.com/rosebe/nginx-quic/actions/workflows/build_openssl.yml)
+[![build nginx_quic_Compiler-GCC](https://github.com/rosebe/nginx-quic/actions/workflows/build-patch-zlib_ng-http_geoip2_module_Compiler-GCC_test-2.yml/badge.svg)](https://github.com/rosebe/nginx-quic/actions/workflows/build-patch-zlib_ng-http_geoip2_module_Compiler-GCC_test-2.yml)
+[![build nginx_quic_musl-gcc](https://github.com/rosebe/nginx-quic/actions/workflows/build-patch-zlib_ng-http_geoip2_module_musl-gcc-test-2.yml/badge.svg)](https://github.com/rosebe/nginx-quic/actions/workflows/build-patch-zlib_ng-http_geoip2_module_musl-gcc-test-2.yml)
 
-使用GitHub Action编译nginx-quic，基于最新源码 :
-（https://hg.nginx.org/nginx-quic)
+使用GitHub Action编译nginx-quic，基于最新源码 :<br>
+(https://hg.nginx.org/nginx-quic) <br>
 (https://github.com/nginx)
 
 ##### [测试你的浏览器对quic的支持](https://quic.nginx.org/quic.html)
