@@ -791,8 +791,13 @@ jobs:
           # 必须将我们刚才辛苦编译出的静态 zstd 路径作为环境变量强制喂给 zstd-nginx-module
           # 否则该模块会因为找不到头文件或尝试寻找 glibc 的系统库而崩溃
           # 使用绝对路径
-          export ZSTD_INC="${{ github.workspace }}/zstd/installed/include"
-          export ZSTD_LIB="${{ github.workspace }}/zstd/installed/lib"
+          # export ZSTD_INC="${{ github.workspace }}/zstd/installed/include"
+          # export ZSTD_LIB="${{ github.workspace }}/zstd/installed/lib"
+
+          export ZSTD_INC="../zstd/installed/include"
+          export ZSTD_LIB="../zstd/installed/lib"
+          
+          
           # ========================================================
           
           # 高级分块与循环展开优化
